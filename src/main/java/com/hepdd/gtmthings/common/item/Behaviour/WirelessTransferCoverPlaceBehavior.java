@@ -1,5 +1,6 @@
 package com.hepdd.gtmthings.common.item.Behaviour;
 
+import com.gregtechceu.gtceu.api.capability.GTCapabilityHelper;
 import com.gregtechceu.gtceu.api.cover.CoverDefinition;
 import com.gregtechceu.gtceu.api.item.component.IInteractionItem;
 
@@ -16,8 +17,6 @@ import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 
 import com.hepdd.gtmthings.data.CustomItems;
-import com.lowdragmc.lowdraglib.side.fluid.FluidTransferHelper;
-import com.lowdragmc.lowdraglib.side.item.ItemTransferHelper;
 
 public record WirelessTransferCoverPlaceBehavior(CoverDefinition coverDefinition) implements IInteractionItem {
 
@@ -27,9 +26,14 @@ public record WirelessTransferCoverPlaceBehavior(CoverDefinition coverDefinition
             Player player = context.getPlayer();
             Level level = context.getLevel();
             BlockPos blockPos = context.getClickedPos();
-            var itemTransfer = ItemTransferHelper.getItemTransfer(level, blockPos, context.getClickedFace());
-            var fluidTransfer = FluidTransferHelper.getFluidTransfer(level, blockPos, context.getClickedFace());
-            if (((itemStack.is(CustomItems.WIRELESS_ITEM_TRANSFER_COVER.asItem()) || itemStack.is(CustomItems.ADVANCED_WIRELESS_ITEM_TRANSFER_COVER.asItem())) && itemTransfer != null && itemTransfer.getSlots() > 0) || ((itemStack.is(CustomItems.WIRELESS_FLUID_TRANSFER_COVER.asItem()) || itemStack.is(CustomItems.ADVANCED_WIRELESS_FLUID_TRANSFER_COVER.asItem())) && fluidTransfer != null && fluidTransfer.getTanks() > 0)) {
+            var itemHandler = GTCapabilityHelper.getItemHandler(level, blockPos, context.getClickedFace());
+            var fluidHandler = GTCapabilityHelper.getFluidHandler(level, blockPos, context.getClickedFace());
+            boolean isItemCover = itemStack.is(CustomItems.WIRELESS_ITEM_TRANSFER_COVER.get()) ||
+                    itemStack.is(CustomItems.ADVANCED_WIRELESS_ITEM_TRANSFER_COVER.get());
+            boolean isFluidCover = itemStack.is(CustomItems.WIRELESS_FLUID_TRANSFER_COVER.get()) ||
+                    itemStack.is(CustomItems.ADVANCED_WIRELESS_FLUID_TRANSFER_COVER.get());
+            if ((isItemCover && itemHandler != null && itemHandler.getSlots() > 0) ||
+                    (isFluidCover && fluidHandler != null && fluidHandler.getTanks() > 0)) {
                 CompoundTag tag = new CompoundTag();
                 tag.putString("dimensionid", level.dimension().location().toString());
                 tag.putString("blockid", level.getBlockState(blockPos).getBlock().getDescriptionId());
@@ -39,7 +43,12 @@ public record WirelessTransferCoverPlaceBehavior(CoverDefinition coverDefinition
                 tag.putInt("y", blockPos.getY());
                 tag.putInt("z", blockPos.getZ());
                 itemStack.setTag(tag);
-                if (level.isClientSide()) player.sendSystemMessage(Component.translatable("item.gtmthings.wireless_transfer.tooltip.bind.1", Component.translatable(level.getBlockState(blockPos).getBlock().getDescriptionId()), blockPos.toShortString()));
+                if (level.isClientSide()) {
+                    player.sendSystemMessage(Component.translatable(
+                            "item.gtmthings.wireless_transfer.tooltip.bind.1",
+                            Component.translatable(level.getBlockState(blockPos).getBlock().getDescriptionId()),
+                            blockPos.toShortString()));
+                }
             }
             return InteractionResult.SUCCESS;
         }
@@ -57,7 +66,9 @@ public record WirelessTransferCoverPlaceBehavior(CoverDefinition coverDefinition
             is.removeTagKey("x");
             is.removeTagKey("y");
             is.removeTagKey("z");
-            if (level.isClientSide()) player.sendSystemMessage(Component.translatable("item.gtmthings.wireless_transfer.tooltip.bind.2"));
+            if (level.isClientSide()) {
+                player.sendSystemMessage(Component.translatable("item.gtmthings.wireless_transfer.tooltip.bind.2"));
+            }
         }
         return IInteractionItem.super.use(item, level, player, usedHand);
     }

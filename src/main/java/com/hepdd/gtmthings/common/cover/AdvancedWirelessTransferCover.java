@@ -4,15 +4,14 @@ import com.gregtechceu.gtceu.api.capability.ICoverable;
 import com.gregtechceu.gtceu.api.capability.recipe.IO;
 import com.gregtechceu.gtceu.api.cover.CoverBehavior;
 import com.gregtechceu.gtceu.api.cover.CoverDefinition;
-import com.gregtechceu.gtceu.api.cover.IUICover;
+import com.gregtechceu.gtceu.api.cover.IMuiCover;
+import com.gregtechceu.gtceu.api.cover.filter.Filter;
 import com.gregtechceu.gtceu.api.cover.filter.FilterHandler;
-import com.gregtechceu.gtceu.api.cover.filter.FilterHandlers;
-import com.gregtechceu.gtceu.api.cover.filter.FluidFilter;
-import com.gregtechceu.gtceu.api.cover.filter.ItemFilter;
 import com.gregtechceu.gtceu.api.machine.MetaMachine;
 import com.gregtechceu.gtceu.api.machine.SimpleTieredMachine;
 import com.gregtechceu.gtceu.api.machine.TickableSubscription;
 import com.gregtechceu.gtceu.api.machine.WorkableTieredMachine;
+import com.gregtechceu.gtceu.api.sync_system.annotations.SaveField;
 import com.gregtechceu.gtceu.common.machine.electric.PumpMachine;
 import com.gregtechceu.gtceu.common.machine.multiblock.part.FluidHatchPartMachine;
 import com.gregtechceu.gtceu.common.machine.multiblock.part.ItemBusPartMachine;
@@ -27,7 +26,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -40,12 +38,11 @@ import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.ItemHandlerHelper;
 
-import com.lowdragmc.lowdraglib.gui.widget.LabelWidget;
-import com.lowdragmc.lowdraglib.gui.widget.Widget;
-import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
-import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
-import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
-import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
+import brachy.modularui.factory.SidedPosGuiData;
+import brachy.modularui.screen.UISettings;
+import brachy.modularui.value.sync.PanelSyncManager;
+import brachy.modularui.widgets.TextWidget;
+import brachy.modularui.widgets.layout.Flow;
 import lombok.Getter;
 import org.jetbrains.annotations.Nullable;
 
@@ -58,64 +55,63 @@ import static net.minecraft.resources.ResourceLocation.tryParse;
 
 @ParametersAreNonnullByDefault
 @MethodsReturnNonnullByDefault
-public class AdvancedWirelessTransferCover extends CoverBehavior implements IUICover {
-
-    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(
-            AdvancedWirelessTransferCover.class, CoverBehavior.MANAGED_FIELD_HOLDER);
-
-    @Override
-    public ManagedFieldHolder getFieldHolder() {
-        return MANAGED_FIELD_HOLDER;
-    }
+public class AdvancedWirelessTransferCover extends CoverBehavior implements IMuiCover {
 
     public static final int TRANSFER_ITEM = 1;
     public static final int TRANSFER_FLUID = 2;
 
-    @Persisted
+    @SaveField
     protected final int transferType;
     private TickableSubscription subscription;
-    protected ServerLevel targetLever;
-    @Persisted
+    protected ServerLevel targetLevel;
+    @SaveField
     private String dimensionId;
-    @Persisted
+    @SaveField
     protected BlockPos targetPos;
-    @Persisted
+    @SaveField
     protected Direction facing;
 
-    @Persisted
-    @DescSynced
+    @SaveField
     @Getter
-    protected final FilterHandler<FluidStack, FluidFilter> filterHandlerFluid;
-    @Persisted
-    @DescSynced
+    protected final FilterHandler<FluidStack> filterHandlerFluid;
+    @SaveField
     @Getter
-    protected final FilterHandler<ItemStack, ItemFilter> filterHandlerItem;
+    protected final FilterHandler<ItemStack> filterHandlerItem;
 
-    public AdvancedWirelessTransferCover(CoverDefinition definition, ICoverable coverHolder, Direction attachedSide, int transferType) {
+    public AdvancedWirelessTransferCover(CoverDefinition definition, ICoverable coverHolder, Direction attachedSide,
+                                         int transferType) {
         super(definition, coverHolder, attachedSide);
         this.transferType = transferType;
 
-        filterHandlerFluid = FilterHandlers.fluid(this)
+        this.filterHandlerFluid = new FilterHandler<>(this, FluidStack.class)
                 .onFilterLoaded(f -> configureFilter())
                 .onFilterUpdated(f -> configureFilter())
-                .onFilterRemoved(f -> configureFilter());
+                .onFilterRemoved(this::configureFilter);
 
-        filterHandlerItem = FilterHandlers.item(this)
+        this.filterHandlerItem = new FilterHandler<>(this, ItemStack.class)
                 .onFilterLoaded(f -> configureFilter())
                 .onFilterUpdated(f -> configureFilter())
-                .onFilterRemoved(f -> configureFilter());
+                .onFilterRemoved(this::configureFilter);
     }
 
     @Override
     public boolean canAttach() {
-        var targetMachine = MetaMachine.getMachine(coverHolder.getLevel(), coverHolder.getPos());
+        var targetMachine = MetaMachine.getMachine(coverHolder.getLevel(), coverHolder.getBlockPos());
         if (targetMachine instanceof WorkableTieredMachine workableTieredMachine) {
-            return (workableTieredMachine.exportItems.getSlots() > 0 && this.transferType == TRANSFER_ITEM) || (workableTieredMachine.exportFluids.getTanks() > 0 && this.transferType == TRANSFER_FLUID);
-        } else if (targetMachine instanceof PumpMachine || targetMachine instanceof QuantumTankMachine || targetMachine instanceof DrumMachine) {
-            return this.transferType == TRANSFER_FLUID;
-        } else if (targetMachine instanceof QuantumChestMachine || targetMachine instanceof CrateMachine) {
-            return this.transferType == TRANSFER_ITEM;
-        } else return (targetMachine instanceof ItemBusPartMachine itemBusPartMachine && itemBusPartMachine.getInventory().handlerIO != IO.IN && this.transferType == TRANSFER_ITEM) || (targetMachine instanceof FluidHatchPartMachine fluidHatchPartMachine && fluidHatchPartMachine.tank.handlerIO != IO.IN && this.transferType == TRANSFER_FLUID);
+            return (workableTieredMachine.exportItems.getSlots() > 0 && this.transferType == TRANSFER_ITEM) ||
+                    (workableTieredMachine.exportFluids.getTanks() > 0 && this.transferType == TRANSFER_FLUID);
+        } else if (targetMachine instanceof PumpMachine || targetMachine instanceof QuantumTankMachine ||
+                targetMachine instanceof DrumMachine) {
+                    return this.transferType == TRANSFER_FLUID;
+                } else
+            if (targetMachine instanceof QuantumChestMachine || targetMachine instanceof CrateMachine) {
+                return this.transferType == TRANSFER_ITEM;
+            } else {
+                return (targetMachine instanceof ItemBusPartMachine itemBusPartMachine &&
+                        itemBusPartMachine.getInventory().handlerIO != IO.IN && this.transferType == TRANSFER_ITEM) ||
+                        (targetMachine instanceof FluidHatchPartMachine fluidHatchPartMachine &&
+                                fluidHatchPartMachine.tank.handlerIO != IO.IN && this.transferType == TRANSFER_FLUID);
+            }
     }
 
     @Override
@@ -128,16 +124,19 @@ public class AdvancedWirelessTransferCover extends CoverBehavior implements IUIC
             var intZ = tag.getInt("z");
             this.targetPos = new BlockPos(intX, intY, intZ);
             this.facing = Direction.byName(tag.getString("facing"));
-            GetLevel();
+            resolveLevel();
         }
-        var targetMachine = MetaMachine.getMachine(coverHolder.getLevel(), coverHolder.getPos());
+        var targetMachine = MetaMachine.getMachine(coverHolder.getLevel(), coverHolder.getBlockPos());
         if (targetMachine instanceof SimpleTieredMachine simpleTieredMachine) {
-            if (this.transferType == TRANSFER_ITEM) simpleTieredMachine.setAutoOutputItems(false);
-            if (this.transferType == TRANSFER_FLUID) simpleTieredMachine.setAutoOutputFluids(false);
-        } else if (targetMachine instanceof ItemBusPartMachine itemBusPartMachine && this.transferType == TRANSFER_ITEM) {
-            itemBusPartMachine.setWorkingEnabled(false);
-        } else if (targetMachine instanceof FluidHatchPartMachine fluidHatchPartMachine && this.transferType == TRANSFER_FLUID) {
-            fluidHatchPartMachine.setWorkingEnabled(false);
+            var auto = simpleTieredMachine.getTrait(com.gregtechceu.gtceu.common.machine.trait.AutoOutputTrait.class);
+            if (auto != null) {
+                if (this.transferType == TRANSFER_ITEM) auto.setAllowAutoOutputItems(false);
+                if (this.transferType == TRANSFER_FLUID) auto.setAllowAutoOutputFluids(false);
+            }
+        } else if (targetMachine instanceof ItemBusPartMachine ibm && this.transferType == TRANSFER_ITEM) {
+            ibm.setWorkingEnabled(false);
+        } else if (targetMachine instanceof FluidHatchPartMachine fhm && this.transferType == TRANSFER_FLUID) {
+            fhm.setWorkingEnabled(false);
         }
         super.onAttached(itemStack, player);
     }
@@ -157,7 +156,7 @@ public class AdvancedWirelessTransferCover extends CoverBehavior implements IUIC
     @Override
     public void onLoad() {
         super.onLoad();
-        GetLevel();
+        resolveLevel();
         subscription = coverHolder.subscribeServerTick(subscription, this::update);
     }
 
@@ -175,7 +174,6 @@ public class AdvancedWirelessTransferCover extends CoverBehavior implements IUIC
             if (transferType == TRANSFER_ITEM) {
                 var adjacentItemTransfer = getAdjacentItemTransfer();
                 var myItemHandler = getOwnItemTransfer();
-
                 if (adjacentItemTransfer != null && myItemHandler != null) {
                     moveInventoryItems(myItemHandler, adjacentItemTransfer);
                 }
@@ -190,18 +188,13 @@ public class AdvancedWirelessTransferCover extends CoverBehavior implements IUIC
     }
 
     protected void moveInventoryItems(IItemHandler sourceInventory, IItemHandler targetInventory) {
-        ItemFilter filter = filterHandlerItem.getFilter();
+        Filter<ItemStack> filter = filterHandlerItem.getFilter();
         int itemsLeftToTransfer = Integer.MAX_VALUE;
 
         for (int srcIndex = 0; srcIndex < sourceInventory.getSlots(); srcIndex++) {
             ItemStack sourceStack = sourceInventory.extractItem(srcIndex, itemsLeftToTransfer, true);
-            if (sourceStack.isEmpty()) {
-                continue;
-            }
-
-            if (!filter.test(sourceStack)) {
-                continue;
-            }
+            if (sourceStack.isEmpty()) continue;
+            if (!filter.test(sourceStack)) continue;
 
             ItemStack remainder = ItemHandlerHelper.insertItemStacked(targetInventory, sourceStack, true);
             int amountToInsert = sourceStack.getCount() - remainder.getCount();
@@ -211,10 +204,7 @@ public class AdvancedWirelessTransferCover extends CoverBehavior implements IUIC
                 if (!sourceStack.isEmpty()) {
                     ItemHandlerHelper.insertItemStacked(targetInventory, sourceStack, false);
                     itemsLeftToTransfer -= sourceStack.getCount();
-
-                    if (itemsLeftToTransfer == 0) {
-                        break;
-                    }
+                    if (itemsLeftToTransfer == 0) break;
                 }
             }
         }
@@ -225,15 +215,15 @@ public class AdvancedWirelessTransferCover extends CoverBehavior implements IUIC
                 filterHandlerFluid.getFilter(), Integer.MAX_VALUE);
     }
 
-    protected void GetLevel() {
+    protected void resolveLevel() {
         if (this.dimensionId == null) return;
         ResourceLocation resLoc = tryParse(this.dimensionId);
         ResourceKey<Level> resKey = ResourceKey.create(Registries.DIMENSION, resLoc);
-        this.targetLever = Objects.requireNonNull(coverHolder.getLevel().getServer()).getLevel(resKey);
+        this.targetLevel = Objects.requireNonNull(coverHolder.getLevel().getServer()).getLevel(resKey);
     }
 
     protected void configureFilter() {
-        // Do nothing in the base implementation. This is intended to be overridden by subclasses.
+        // Do nothing in the base implementation.
     }
 
     protected @Nullable IItemHandler getOwnItemTransfer() {
@@ -241,8 +231,8 @@ public class AdvancedWirelessTransferCover extends CoverBehavior implements IUIC
     }
 
     protected @Nullable IItemHandler getAdjacentItemTransfer() {
-        if (targetLever == null || targetPos == null) return null;
-        return GTTransferUtils.getItemHandler(targetLever, targetPos, facing.getOpposite()).resolve().orElse(null);
+        if (targetLevel == null || targetPos == null) return null;
+        return GTTransferUtils.getItemHandler(targetLevel, targetPos, facing.getOpposite()).resolve().orElse(null);
     }
 
     protected @Nullable IFluidHandler getOwnFluidTransfer() {
@@ -250,38 +240,39 @@ public class AdvancedWirelessTransferCover extends CoverBehavior implements IUIC
     }
 
     protected @Nullable IFluidHandler getAdjacentFluidTransfer() {
-        if (targetLever == null || targetPos == null) return null;
-        return FluidUtil.getFluidHandler(targetLever, targetPos, facing.getOpposite()).resolve().orElse(null);
+        if (targetLevel == null || targetPos == null) return null;
+        return FluidUtil.getFluidHandler(targetLevel, targetPos, facing.getOpposite()).resolve().orElse(null);
     }
 
+    //////////////////////////////////////
+    // ********** GUI ***********//
+    //////////////////////////////////////
+
     @Override
-    public Widget createUIWidget() {
+    public void createCoverUIRows(Flow column, SidedPosGuiData data, PanelSyncManager syncManager,
+                                  UISettings settings) {
+        String titleKey = transferType == TRANSFER_ITEM ?
+                "item.gtmthings.advanced_wireless_item_transfer_cover" :
+                "item.gtmthings.advanced_wireless_fluid_transfer_cover";
+        column.child(new TextWidget<>(titleKey));
         if (transferType == TRANSFER_ITEM) {
-            return createItemUIWidget();
+            Filter<ItemStack> filter = getItemFilter();
+            if (filter != null) {
+                column.child(filter.getFilterUI(data, syncManager, settings));
+            }
         } else {
-            return createFluidUIWidget();
+            Filter<FluidStack> filter = getFluidFilter();
+            if (filter != null) {
+                column.child(filter.getFilterUI(data, syncManager, settings));
+            }
         }
     }
 
-    public Widget createItemUIWidget() {
-        final var group = new WidgetGroup(0, 0, 176, 107);
-        var titleLabel = new LabelWidget(10, 5, Component.translatable("item.gtmthings.advanced_wireless_item_transfer_cover"));
-        titleLabel.setText(Component.translatable("item.gtmthings.advanced_wireless_item_transfer_cover").getString());
-        group.addWidget(titleLabel);
-        group.addWidget(filterHandlerItem.createFilterSlotUI(10, 20));
-        group.addWidget(filterHandlerItem.createFilterConfigUI(10, 42, 156, 60));
-
-        return group;
+    public @Nullable Filter<ItemStack> getItemFilter() {
+        return filterHandlerItem.getFilter();
     }
 
-    public Widget createFluidUIWidget() {
-        final var group = new WidgetGroup(0, 0, 176, 107);
-        var titleLabel = new LabelWidget(10, 5, Component.translatable("item.gtmthings.advanced_wireless_fluid_transfer_cover"));
-        titleLabel.setText(Component.translatable("item.gtmthings.advanced_wireless_fluid_transfer_cover").getString());
-        group.addWidget(titleLabel);
-        group.addWidget(filterHandlerFluid.createFilterSlotUI(10, 20));
-        group.addWidget(filterHandlerFluid.createFilterConfigUI(10, 42, 156, 60));
-
-        return group;
+    public @Nullable Filter<FluidStack> getFluidFilter() {
+        return filterHandlerFluid.getFilter();
     }
 }

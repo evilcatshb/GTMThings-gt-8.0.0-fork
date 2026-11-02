@@ -1,34 +1,26 @@
 package com.hepdd.gtmthings.common.block.machine.multiblock.part;
 
 import com.gregtechceu.gtceu.api.GTValues;
+import com.gregtechceu.gtceu.api.blockentity.BlockEntityCreationInfo;
 import com.gregtechceu.gtceu.api.capability.recipe.IO;
-import com.gregtechceu.gtceu.api.machine.IMachineBlockEntity;
 import com.gregtechceu.gtceu.api.machine.TickableSubscription;
-import com.gregtechceu.gtceu.api.machine.feature.IExplosionMachine;
-import com.gregtechceu.gtceu.api.machine.feature.IInteractedMachine;
-import com.gregtechceu.gtceu.api.machine.feature.IMachineLife;
 import com.gregtechceu.gtceu.api.machine.multiblock.part.TieredIOPartMachine;
-import com.gregtechceu.gtceu.api.machine.trait.NotifiableEnergyContainer;
+import com.gregtechceu.gtceu.api.machine.trait.notifiable.NotifiableEnergyContainer;
+import com.gregtechceu.gtceu.api.sync_system.annotations.SaveField;
 import com.gregtechceu.gtceu.common.data.GTItems;
+import com.gregtechceu.gtceu.utils.ExtendedUseOnContext;
 
 import net.minecraft.MethodsReturnNonnullByDefault;
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.BlockHitResult;
 
 import com.hepdd.gtmthings.api.machine.IWirelessEnergyContainerHolder;
 import com.hepdd.gtmthings.api.misc.WirelessEnergyContainer;
-import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
-import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import lombok.Getter;
 import lombok.Setter;
 import org.jetbrains.annotations.Nullable;
@@ -41,41 +33,44 @@ import static com.hepdd.gtmthings.utils.TeamUtil.GetName;
 
 @ParametersAreNonnullByDefault
 @MethodsReturnNonnullByDefault
-public class WirelessEnergyHatchPartMachine extends TieredIOPartMachine implements IInteractedMachine, IExplosionMachine, IMachineLife, IWirelessEnergyContainerHolder {
-
-    protected static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(
-            WirelessEnergyHatchPartMachine.class, TieredIOPartMachine.MANAGED_FIELD_HOLDER);
-
-    @Override
-    public ManagedFieldHolder getFieldHolder() {
-        return MANAGED_FIELD_HOLDER;
-    }
+public class WirelessEnergyHatchPartMachine extends TieredIOPartMachine
+                                            implements IWirelessEnergyContainerHolder {
 
     @Nullable
     @Getter
     @Setter
     private WirelessEnergyContainer WirelessEnergyContainerCache;
 
-    @Persisted
+    /** Canonical persisted wireless network identity (FTB team UUID, or player UUID without a team). */
+    @SaveField
+    @Nullable
+    private UUID wirelessTeamUUID;
+
+    @SaveField
     public final NotifiableEnergyContainer energyContainer;
     @Getter
     protected int amperage;
     private TickableSubscription updEnergySubs;
 
-    public WirelessEnergyHatchPartMachine(IMachineBlockEntity holder, int tier, IO io, int amperage, Object... args) {
-        super(holder, tier, io);
+    public WirelessEnergyHatchPartMachine(BlockEntityCreationInfo info, int tier, IO io, int amperage,
+                                          Object... args) {
+        super(info, tier, io);
         this.amperage = amperage;
-        this.energyContainer = createEnergyContainer(args);
+        this.energyContainer = attachTrait(createEnergyContainer());
     }
 
-    protected NotifiableEnergyContainer createEnergyContainer(Object... args) {
+    protected NotifiableEnergyContainer createEnergyContainer() {
         NotifiableEnergyContainer container;
         if (io == IO.OUT) {
-            container = NotifiableEnergyContainer.emitterContainer(this, GTValues.VEX[tier] * 64L * amperage,
-                    GTValues.VEX[tier], amperage);
+            container = NotifiableEnergyContainer.emitterContainer(
+                    GTValues.V[tier] * 64L * amperage, GTValues.V[tier], amperage);
+            container.setSideOutputCondition(s -> s == getFrontFacing() && isWorkingEnabled());
+            container.setCapabilityValidator(s -> s == null || s == getFrontFacing());
         } else {
-            container = NotifiableEnergyContainer.receiverContainer(this, GTValues.VEX[tier] * 16L * amperage,
-                    GTValues.VEX[tier], amperage);
+            container = NotifiableEnergyContainer.receiverContainer(
+                    GTValues.V[tier] * 16L * amperage, GTValues.V[tier], amperage);
+            container.setSideInputCondition(s -> s == getFrontFacing() && isWorkingEnabled());
+            container.setCapabilityValidator(s -> s == null || s == getFrontFacing());
         }
         return container;
     }
@@ -83,6 +78,27 @@ public class WirelessEnergyHatchPartMachine extends TieredIOPartMachine implemen
     @Override
     public void onLoad() {
         super.onLoad();
+        if (!isRemote() && wirelessTeamUUID == null && getOwnerUUID() != null) {
+            wirelessTeamUUID = com.hepdd.gtmthings.utils.TeamUtil.getWirelessNetworkUUID(getOwnerUUID());
+            markAsChanged();
+        }
+        updateEnergySubscription();
+    }
+
+    @Override
+    public boolean autoBindOnPlacement() {
+        return true;
+    }
+
+    @Override
+    public void bindToPlacingPlayer(Player player) {
+        if (isRemote() || player == null) return;
+        if (wirelessTeamUUID == null) {
+            setOwnerUUID(player.getUUID());
+            wirelessTeamUUID = com.hepdd.gtmthings.utils.TeamUtil.getWirelessNetworkUUID(player.getUUID());
+            setWirelessEnergyContainerCache(null);
+            markAsChanged();
+        }
         updateEnergySubscription();
     }
 
@@ -116,7 +132,8 @@ public class WirelessEnergyHatchPartMachine extends TieredIOPartMachine implemen
     private void useEnergy() {
         var currentStored = energyContainer.getEnergyStored();
         var maxStored = energyContainer.getEnergyCapacity();
-        var changeStored = Math.min(maxStored - currentStored, energyContainer.getInputVoltage() * energyContainer.getInputAmperage());
+        var changeStored = Math.min(maxStored - currentStored,
+                energyContainer.getInputVoltage() * energyContainer.getInputAmperage());
         if (changeStored <= 0) return;
         WirelessEnergyContainer container = getWirelessEnergyContainer();
         if (container == null) return;
@@ -127,7 +144,8 @@ public class WirelessEnergyHatchPartMachine extends TieredIOPartMachine implemen
     private void addEnergy() {
         var currentStored = energyContainer.getEnergyStored();
         if (currentStored <= 0) return;
-        var changeStored = Math.min(energyContainer.getOutputVoltage() * energyContainer.getOutputAmperage(), currentStored);
+        var changeStored = Math.min(energyContainer.getOutputVoltage() * energyContainer.getOutputAmperage(),
+                currentStored);
         WirelessEnergyContainer container = getWirelessEnergyContainer();
         if (container == null) return;
         changeStored = container.addEnergy(changeStored, this);
@@ -135,37 +153,41 @@ public class WirelessEnergyHatchPartMachine extends TieredIOPartMachine implemen
     }
 
     @Override
-    public boolean shouldOpenUI(Player player, InteractionHand hand, BlockHitResult hit) {
-        return false;
-    }
-
-    @Override
-    public InteractionResult onUse(BlockState state, Level world, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
+    public InteractionResult onUse(ExtendedUseOnContext context) {
+        var superResult = super.onUse(context);
+        if (superResult != InteractionResult.PASS) return superResult;
         if (isRemote()) return InteractionResult.PASS;
-        ItemStack is = player.getItemInHand(hand);
+        Player player = context.getPlayer();
+        ItemStack is = player.getItemInHand(context.getHand());
         if (is.isEmpty()) return InteractionResult.PASS;
-        if (is.is(GTItems.TOOL_DATA_STICK.asItem())) {
+        if (is.is(GTItems.TOOL_DATA_STICK.get())) {
             setOwnerUUID(player.getUUID());
+            wirelessTeamUUID = com.hepdd.gtmthings.utils.TeamUtil.getWirelessNetworkUUID(player.getUUID());
             setWirelessEnergyContainerCache(null);
-            player.sendSystemMessage(Component.translatable("gtmthings.machine.wireless_energy_hatch.tooltip.bind", GetName(player)));
+            markAsChanged();
+            player.sendSystemMessage(Component.translatable(
+                    "gtmthings.machine.wireless_energy_hatch.tooltip.bind", GetName(player)));
             updateEnergySubscription();
-            return InteractionResult.SUCCESS;
+            return InteractionResult.sidedSuccess(isRemote());
         } else if (is.is(Items.STICK)) {
-            if (io == IO.OUT) energyContainer.setEnergyStored(GTValues.VEX[tier] * 64L * amperage);
-            return InteractionResult.SUCCESS;
+            if (io == IO.OUT) energyContainer.setEnergyStored(GTValues.V[tier] * 64L * amperage);
+            return InteractionResult.sidedSuccess(isRemote());
         }
         return InteractionResult.PASS;
     }
 
     @Override
-    public boolean onLeftClick(Player player, Level world, InteractionHand hand, BlockPos pos, Direction direction) {
+    public boolean onLeftClick(Player player, InteractionHand hand, @Nullable Direction face) {
         if (isRemote()) return false;
         ItemStack is = player.getItemInHand(hand);
         if (is.isEmpty()) return false;
-        if (is.is(GTItems.TOOL_DATA_STICK.asItem())) {
+        if (is.is(GTItems.TOOL_DATA_STICK.get())) {
             setOwnerUUID(null);
+            wirelessTeamUUID = null;
             setWirelessEnergyContainerCache(null);
-            player.sendSystemMessage(Component.translatable("gtmthings.machine.wireless_energy_hatch.tooltip.unbind"));
+            markAsChanged();
+            player.sendSystemMessage(
+                    Component.translatable("gtmthings.machine.wireless_energy_hatch.tooltip.unbind"));
             updateEnergySubscription();
             return true;
         }
@@ -173,21 +195,16 @@ public class WirelessEnergyHatchPartMachine extends TieredIOPartMachine implemen
     }
 
     @Override
-    public void onMachinePlaced(@Nullable LivingEntity player, ItemStack stack) {
-        if (player != null) {
-            setOwnerUUID(player.getUUID());
-            updateEnergySubscription();
-        }
+    public void onMachineDestroyed() {
+        // unbind owner cache when machine is removed
+        setWirelessEnergyContainerCache(null);
+        super.onMachineDestroyed();
     }
 
     @Override
     public @Nullable UUID getUUID() {
-        return getOwnerUUID();
+        return wirelessTeamUUID;
     }
-
-    //////////////////////////////////////
-    // ********** Misc **********//
-    //////////////////////////////////////
 
     @Override
     public int tintColor(int index) {

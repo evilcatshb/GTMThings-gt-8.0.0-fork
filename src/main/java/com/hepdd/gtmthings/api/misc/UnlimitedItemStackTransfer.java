@@ -7,8 +7,8 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.items.ItemHandlerHelper;
 
-import com.lowdragmc.lowdraglib.side.item.ItemTransferHelper;
 import lombok.Setter;
 import org.jetbrains.annotations.NotNull;
 
@@ -63,11 +63,11 @@ public class UnlimitedItemStackTransfer extends CustomItemStackHandler {
             }
         } else {
             if (!simulate) {
-                this.stacks.set(slot, ItemTransferHelper.copyStackWithSize(existing, existing.getCount() - toExtract));
+                this.stacks.set(slot, ItemHandlerHelper.copyStackWithSize(existing, existing.getCount() - toExtract));
                 onContentsChanged(slot);
             }
 
-            return ItemTransferHelper.copyStackWithSize(existing, toExtract);
+            return ItemHandlerHelper.copyStackWithSize(existing, toExtract);
         }
     }
 

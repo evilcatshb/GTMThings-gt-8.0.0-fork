@@ -56,9 +56,8 @@ public class FormatUtil {
         for (var c : appends) {
             a[++i] = c;
         }
-        var spacer = ".";
-        var spacerComponent = Component.literal(spacer);
-        a[0] = spacerComponent.append(body);
+        // No "." spacer: formatJustifyComponent is never called on these components,
+        // so the dot would render literally (e.g. ".512 EU"). Plain body only.
         return Component.translatable(labelKey, (Object[]) a);
     }
 

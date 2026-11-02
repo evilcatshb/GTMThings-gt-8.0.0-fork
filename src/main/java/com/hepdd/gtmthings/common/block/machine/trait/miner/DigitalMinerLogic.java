@@ -2,15 +2,15 @@ package com.hepdd.gtmthings.common.block.machine.trait.miner;
 
 import com.gregtechceu.gtceu.GTCEu;
 import com.gregtechceu.gtceu.api.capability.recipe.*;
-import com.gregtechceu.gtceu.api.cover.filter.ItemFilter;
+import com.gregtechceu.gtceu.api.cover.filter.Filter;
 import com.gregtechceu.gtceu.api.item.tool.GTToolType;
-import com.gregtechceu.gtceu.api.machine.feature.IRecipeLogicMachine;
-import com.gregtechceu.gtceu.api.machine.trait.RecipeHandlerList;
-import com.gregtechceu.gtceu.api.machine.trait.RecipeLogic;
+import com.gregtechceu.gtceu.api.machine.trait.recipe.RecipeHandlerList;
+import com.gregtechceu.gtceu.api.machine.trait.recipe.RecipeLogic;
 import com.gregtechceu.gtceu.api.misc.IgnoreEnergyRecipeHandler;
 import com.gregtechceu.gtceu.api.misc.ItemRecipeHandler;
 import com.gregtechceu.gtceu.api.recipe.GTRecipe;
 import com.gregtechceu.gtceu.api.recipe.RecipeHelper;
+import com.gregtechceu.gtceu.api.sync_system.annotations.SaveField;
 import com.gregtechceu.gtceu.api.transfer.item.NotifiableAccountedInvWrapper;
 import com.gregtechceu.gtceu.common.data.GTMaterialItems;
 import com.gregtechceu.gtceu.common.data.GTMaterials;
@@ -36,8 +36,6 @@ import net.minecraftforge.common.Tags;
 import net.minecraftforge.items.IItemHandlerModifiable;
 
 import com.hepdd.gtmthings.api.capability.IDigitalMiner;
-import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
-import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import lombok.Getter;
 import lombok.Setter;
@@ -48,13 +46,11 @@ import java.util.*;
 
 public class DigitalMinerLogic extends RecipeLogic implements IRecipeCapabilityHolder {
 
-    public static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(DigitalMinerLogic.class,
-            RecipeLogic.MANAGED_FIELD_HOLDER);
     private static final short MAX_SPEED = Short.MAX_VALUE;
     private static final byte POWER = 5;
     private static final byte TICK_TOLERANCE = 20;
     private static final double DIVIDEND = MAX_SPEED * Math.pow(TICK_TOLERANCE, POWER);
-    protected final IDigitalMiner miner;
+    protected IDigitalMiner miner;
     @Nullable
     private NotifiableAccountedInvWrapper cachedItemTransfer = null;
     @Getter
@@ -67,31 +63,31 @@ public class DigitalMinerLogic extends RecipeLogic implements IRecipeCapabilityH
     public ItemStack pickaxeTool;
     private final LinkedList<BlockPos> blocksToMine = new LinkedList<>();
     @Getter
-    @Persisted
+    @SaveField
     protected int x = Integer.MAX_VALUE;
     @Getter
-    @Persisted
+    @SaveField
     protected int y = Integer.MAX_VALUE;
     @Getter
-    @Persisted
+    @SaveField
     protected int z = Integer.MAX_VALUE;
     @Getter
-    @Persisted
+    @SaveField
     protected int startX = Integer.MAX_VALUE;
     @Getter
-    @Persisted
+    @SaveField
     protected int startZ = Integer.MAX_VALUE;
     @Getter
-    @Persisted
+    @SaveField
     protected int startY = Integer.MAX_VALUE;
     @Getter
-    @Persisted
+    @SaveField
     protected int mineX = Integer.MAX_VALUE;
     @Getter
-    @Persisted
+    @SaveField
     protected int mineZ = Integer.MAX_VALUE;
     @Getter
-    @Persisted
+    @SaveField
     protected int mineY = Integer.MAX_VALUE;
     @Getter
     private int minBuildHeight = Integer.MAX_VALUE;
@@ -101,10 +97,10 @@ public class DigitalMinerLogic extends RecipeLogic implements IRecipeCapabilityH
     private int maxHeight;
     @Getter
     @Setter
-    @Persisted
+    @SaveField
     private int currentRadius;
     @Getter
-    @Persisted
+    @SaveField
     private boolean isDone;
     @Getter
     private boolean isInventoryFull;
@@ -112,16 +108,15 @@ public class DigitalMinerLogic extends RecipeLogic implements IRecipeCapabilityH
     protected final Map<IO, List<RecipeHandlerList>> capabilitiesProxy;
     @Getter
     protected final Map<IO, Map<RecipeCapability<?>, List<IRecipeHandler<?>>>> capabilitiesFlat;
-    private final ItemRecipeHandler inputItemHandler, outputItemHandler;
-    private final IgnoreEnergyRecipeHandler inputEnergyHandler;
+    private @Nullable ItemRecipeHandler inputItemHandler, outputItemHandler;
     @Getter
     private int oreAmount;
     @Getter
-    private ItemFilter itemFilter;
+    private Filter<ItemStack> itemFilter;
 
-    public DigitalMinerLogic(@NotNull IRecipeLogicMachine machine, int maximumRadius, int minHeight, int maxHeight, int silk, ItemFilter itemFilter, int speed) {
-        super(machine);
-        this.miner = (IDigitalMiner) machine;
+    public DigitalMinerLogic(int maximumRadius, int minHeight, int maxHeight, int silk, Filter<ItemStack> itemFilter, int speed) {
+        super();
+        this.miner = null; // set in onTraitAttached
         this.silk = silk;
         this.speed = speed;
         this.currentRadius = maximumRadius;
@@ -134,12 +129,22 @@ public class DigitalMinerLogic extends RecipeLogic implements IRecipeCapabilityH
         this.itemFilter = itemFilter;
         this.capabilitiesProxy = new EnumMap<>(IO.class);
         this.capabilitiesFlat = new EnumMap<>(IO.class);
+    }
+
+    @Override
+    public void onTraitAttached() {
+        super.onTraitAttached();
+        this.miner = (IDigitalMiner) getMachine();
+    }
+
+    @Override
+    public void onMachineLoad() {
+        super.onMachineLoad();
         this.inputItemHandler = new ItemRecipeHandler(IO.IN,
-                machine.getRecipeType().getMaxInputs(ItemRecipeCapability.CAP));
+                getRLMachine().getRecipeType().getMaxInputs(ItemRecipeCapability.CAP), getMachine());
         this.outputItemHandler = new ItemRecipeHandler(IO.OUT,
-                machine.getRecipeType().getMaxOutputs(ItemRecipeCapability.CAP));
-        this.inputEnergyHandler = new IgnoreEnergyRecipeHandler();
-        addHandlerList(RecipeHandlerList.of(IO.IN, inputItemHandler, inputEnergyHandler));
+                getRLMachine().getRecipeType().getMaxOutputs(ItemRecipeCapability.CAP), getMachine());
+        addHandlerList(RecipeHandlerList.of(IO.IN, inputItemHandler, new IgnoreEnergyRecipeHandler()));
         addHandlerList(RecipeHandlerList.of(IO.OUT, outputItemHandler));
     }
 
@@ -151,7 +156,7 @@ public class DigitalMinerLogic extends RecipeLogic implements IRecipeCapabilityH
         this.setWorkingEnabled(false);
     }
 
-    public void resetRecipeLogic(int maximumRadius, int minHeight, int maxHeight, int silk, ItemFilter itemFilter) {
+    public void resetRecipeLogic(int maximumRadius, int minHeight, int maxHeight, int silk, Filter<ItemStack> itemFilter) {
         this.silk = silk;
         this.currentRadius = maximumRadius;
         this.maximumRadius = maximumRadius;
@@ -164,13 +169,8 @@ public class DigitalMinerLogic extends RecipeLogic implements IRecipeCapabilityH
     }
 
     @Override
-    public ManagedFieldHolder getFieldHolder() {
-        return MANAGED_FIELD_HOLDER;
-    }
-
-    @Override
-    public void inValid() {
-        super.inValid();
+    public void onMachineUnload() {
+        super.onMachineUnload();
         this.cachedItemTransfer = null;
     }
 
@@ -323,7 +323,7 @@ public class DigitalMinerLogic extends RecipeLogic implements IRecipeCapabilityH
         }
         outputItemHandler.storage.onContentsChanged(0);
 
-        var matches = machine.getRecipeType().searchRecipe(this, r -> RecipeHelper.matchContents(this, r).isSuccess());
+        var matches = getRLMachine().getRecipeType().searchRecipe(this, r -> RecipeHelper.matchContents(this, r).isSuccess());
 
         while (matches != null && matches.hasNext()) {
             GTRecipe match = matches.next();
@@ -365,7 +365,11 @@ public class DigitalMinerLogic extends RecipeLogic implements IRecipeCapabilityH
 
     protected NotifiableAccountedInvWrapper getCachedItemTransfer() {
         if (cachedItemTransfer == null) {
-            cachedItemTransfer = new NotifiableAccountedInvWrapper(machine.getCapabilitiesFlat(IO.OUT, ItemRecipeCapability.CAP).stream().map(IItemHandlerModifiable.class::cast).toArray(IItemHandlerModifiable[]::new));
+            cachedItemTransfer = new NotifiableAccountedInvWrapper(getRLMachine()
+                    .getCapabilitiesFlat(IO.OUT, ItemRecipeCapability.CAP).stream()
+                    .filter(cap -> cap instanceof IItemHandlerModifiable)
+                    .map(IItemHandlerModifiable.class::cast)
+                    .toArray(IItemHandlerModifiable[]::new));
         }
         return cachedItemTransfer;
     }
@@ -543,6 +547,6 @@ public class DigitalMinerLogic extends RecipeLogic implements IRecipeCapabilityH
      * @return the position to start mining from
      */
     public BlockPos getMiningPos() {
-        return getMachine().getPos();
+        return getMachine().getBlockPos();
     }
 }

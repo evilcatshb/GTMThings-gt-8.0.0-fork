@@ -1,34 +1,33 @@
 package com.hepdd.gtmthings.common.block.machine.multiblock.part.appeng;
 
 import com.gregtechceu.gtceu.api.GTValues;
+import com.gregtechceu.gtceu.api.blockentity.BlockEntityCreationInfo;
 import com.gregtechceu.gtceu.api.capability.recipe.IO;
-import com.gregtechceu.gtceu.api.machine.IMachineBlockEntity;
-import com.gregtechceu.gtceu.api.machine.feature.IInteractedMachine;
-import com.gregtechceu.gtceu.api.machine.trait.NotifiableFluidTank;
-import com.gregtechceu.gtceu.api.machine.trait.NotifiableItemStackHandler;
+import com.gregtechceu.gtceu.api.sync_system.annotations.SaveField;
+import com.gregtechceu.gtceu.api.sync_system.annotations.SyncToClient;
 import com.gregtechceu.gtceu.common.machine.multiblock.part.DualHatchPartMachine;
-import com.gregtechceu.gtceu.integration.ae2.gui.widget.list.AEListGridWidget;
 import com.gregtechceu.gtceu.integration.ae2.machine.feature.IGridConnectedMachine;
 import com.gregtechceu.gtceu.integration.ae2.machine.trait.GridNodeHolder;
 import com.gregtechceu.gtceu.integration.ae2.utils.KeyStorage;
 
 import net.minecraft.MethodsReturnNonnullByDefault;
 import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
 
 import appeng.api.config.Actionable;
 import appeng.api.networking.IGridNodeListener;
 import appeng.api.networking.IManagedGridNode;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.stacks.AEKey;
+import brachy.modularui.api.drawable.Text;
+import brachy.modularui.factory.PosGuiData;
+import brachy.modularui.screen.UISettings;
+import brachy.modularui.value.sync.PanelSyncManager;
+import brachy.modularui.widget.ParentWidget;
+import brachy.modularui.widgets.TextWidget;
+import brachy.modularui.widgets.layout.Flow;
 import com.hepdd.gtmthings.api.machine.trait.InaccessibleInfiniteHandler;
 import com.hepdd.gtmthings.api.machine.trait.InaccessibleInfiniteTank;
-import com.lowdragmc.lowdraglib.gui.widget.LabelWidget;
-import com.lowdragmc.lowdraglib.gui.widget.Widget;
-import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
-import com.lowdragmc.lowdraglib.syncdata.annotation.DescSynced;
-import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
-import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
-import com.lowdragmc.lowdraglib.utils.Position;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 import lombok.Getter;
 import lombok.Setter;
@@ -39,37 +38,33 @@ import javax.annotation.ParametersAreNonnullByDefault;
 
 @ParametersAreNonnullByDefault
 @MethodsReturnNonnullByDefault
-public class MEOutputPartMachine extends DualHatchPartMachine implements IInteractedMachine, IGridConnectedMachine {
+public class MEOutputPartMachine extends DualHatchPartMachine implements IGridConnectedMachine {
 
-    protected static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(MEOutputPartMachine.class, DualHatchPartMachine.MANAGED_FIELD_HOLDER);
-
-    @Override
-    public ManagedFieldHolder getFieldHolder() {
-        return MANAGED_FIELD_HOLDER;
-    }
-
-    @DescSynced
+    @SyncToClient
     @Getter
     @Setter
     protected boolean isOnline;
-    @Persisted
+
+    @SaveField
     protected final GridNodeHolder nodeHolder;
     protected final IActionSource actionSource;
+
     @Getter
     protected Object2LongOpenHashMap<AEKey> returnBuffer = new Object2LongOpenHashMap<>();
-    @Persisted
+
+    @SaveField
     private KeyStorage internalBuffer;
-    @Persisted
+    @SaveField
     private KeyStorage internalTankBuffer;
 
-    public MEOutputPartMachine(IMachineBlockEntity holder) {
-        super(holder, GTValues.LuV, IO.OUT);
-        this.nodeHolder = createNodeHolder();
+    public MEOutputPartMachine(BlockEntityCreationInfo info) {
+        super(info, GTValues.LuV, IO.OUT);
+        this.nodeHolder = attachTrait(new GridNodeHolder(this));
         this.actionSource = IActionSource.ofMachine(nodeHolder.getMainNode()::getNode);
-    }
-
-    protected GridNodeHolder createNodeHolder() {
-        return new GridNodeHolder(this);
+        this.internalBuffer = new KeyStorage();
+        this.internalTankBuffer = new KeyStorage();
+        attachTrait(new InaccessibleInfiniteHandler(internalBuffer));
+        attachTrait(new InaccessibleInfiniteTank(internalTankBuffer));
     }
 
     @Override
@@ -93,22 +88,6 @@ public class MEOutputPartMachine extends DualHatchPartMachine implements IIntera
         }
     }
 
-    /////////////////////////////////
-    // ***** Machine LifeCycle ****//
-    /////////////////////////////////
-
-    @Override
-    protected NotifiableItemStackHandler createInventory(Object... args) {
-        this.internalBuffer = new KeyStorage();
-        return new InaccessibleInfiniteHandler(this, internalBuffer);
-    }
-
-    @Override
-    protected NotifiableFluidTank createTank(int initialCapacity, int slots, Object... args) {
-        this.internalTankBuffer = new KeyStorage();
-        return new InaccessibleInfiniteTank(this, internalTankBuffer);
-    }
-
     @Override
     public void onLoad() {
         super.onLoad();
@@ -116,7 +95,7 @@ public class MEOutputPartMachine extends DualHatchPartMachine implements IIntera
     }
 
     @Override
-    public void onMachineRemoved() {
+    public void onMachineDestroyed() {
         var grid = getMainNode().getGrid();
         if (grid != null) {
             if (!internalBuffer.isEmpty()) {
@@ -134,12 +113,9 @@ public class MEOutputPartMachine extends DualHatchPartMachine implements IIntera
         }
     }
 
-    /////////////////////////////////
-    // ********** Sync ME *********//
-    /////////////////////////////////
-
     protected boolean shouldSubscribe() {
-        return isWorkingEnabled() && isOnline() && (!internalBuffer.storage.isEmpty() || !internalTankBuffer.storage.isEmpty());
+        return isWorkingEnabled() && isOnline() &&
+                (!internalBuffer.storage.isEmpty() || !internalTankBuffer.storage.isEmpty());
     }
 
     @Override
@@ -171,15 +147,12 @@ public class MEOutputPartMachine extends DualHatchPartMachine implements IIntera
     }
 
     @Override
-    public Widget createUIWidget() {
-        WidgetGroup group = new WidgetGroup(new Position(0, 0));
-        // ME Network status
-        group.addWidget(new LabelWidget(0, 0, () -> this.isOnline ?
-                "gtceu.gui.me_network.online" :
-                "gtceu.gui.me_network.offline"));
-
-        group.addWidget(new AEListGridWidget.Item(5, 20, 3, this.internalBuffer));
-        group.addWidget(new AEListGridWidget.Fluid(5, 80, 3, this.internalTankBuffer));
-        return group;
+    public void buildMainUI(ParentWidget<?> mainWidget, PosGuiData guiData, PanelSyncManager syncManager,
+                            UISettings settings) {
+        mainWidget.child(Flow.col()
+                .coverChildren()
+                .margin(4, 4)
+                .childPadding(2)
+                .child(new TextWidget<>(Text.dynamic(() -> isOnline ? Component.translatable("gtceu.gui.me_network.online") : Component.translatable("gtceu.gui.me_network.offline")))));
     }
 }

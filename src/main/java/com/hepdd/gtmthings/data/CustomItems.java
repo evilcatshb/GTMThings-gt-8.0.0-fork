@@ -1,21 +1,17 @@
 package com.hepdd.gtmthings.data;
 
-import com.gregtechceu.gtceu.GTCEu;
 import com.gregtechceu.gtceu.api.GTCEuAPI;
 import com.gregtechceu.gtceu.api.GTValues;
 import com.gregtechceu.gtceu.api.item.ComponentItem;
-import com.gregtechceu.gtceu.api.item.component.ICustomRenderer;
-import com.gregtechceu.gtceu.common.item.CoverPlaceBehavior;
-import com.gregtechceu.gtceu.common.item.TooltipBehavior;
+import com.gregtechceu.gtceu.common.item.behavior.CoverPlaceBehavior;
+import com.gregtechceu.gtceu.common.item.behavior.TooltipBehavior;
 
 import net.minecraft.network.chat.Component;
 
-import com.hepdd.gtmthings.client.VirtualItemProviderRenderer;
 import com.hepdd.gtmthings.common.item.*;
 import com.hepdd.gtmthings.common.item.Behaviour.WirelessTransferCoverPlaceBehavior;
 import com.hepdd.gtmthings.common.item.Behaviour.WirelessTransferCoverTooltipBehavior;
 import com.tterrag.registrate.util.entry.ItemEntry;
-import com.tterrag.registrate.util.nullness.NonNullConsumer;
 
 import java.util.Locale;
 
@@ -25,14 +21,9 @@ import static com.hepdd.gtmthings.common.registry.GTMTRegistration.GTMTHINGS_REG
 
 public class CustomItems {
 
-    public static <T extends ComponentItem> NonNullConsumer<T> attachRenderer(ICustomRenderer customRenderer) {
-        return !GTCEu.isClientSide() ? NonNullConsumer.noop() : (item) -> item.attachComponents(customRenderer);
-    }
-
     public static final ItemEntry<ComponentItem> VIRTUAL_ITEM_PROVIDER = GTMTHINGS_REGISTRATE.item("virtual_item_provider", ComponentItem::create)
             .properties(p -> p.stacksTo(1))
             .onRegister(attach(VirtualItemProviderBehavior.INSTANCE))
-            .onRegister(attachRenderer(() -> VirtualItemProviderRenderer.INSTANCE))
             .register();
 
     public static final ItemEntry<VirtualItemProviderCellItem> VIRTUAL_ITEM_PROVIDER_CELL = GTMTHINGS_REGISTRATE.item("virtual_item_provider_cell", VirtualItemProviderCellItem::new).register();
@@ -144,8 +135,7 @@ public class CustomItems {
     public static ItemEntry<ComponentItem> WIRELESS_ENERGY_TERMINAL = GTMTHINGS_REGISTRATE
             .item("wireless_energy_terminal", ComponentItem::create)
             .properties(p -> p.stacksTo(1))
-            .onRegister(attach(new WirelessEnergyTerminalBehavior()))
-            .onRegister(attach(new WirelessEnergyBindingToolBehavior())).register();
+            .onRegister(attach(new WirelessEnergyTerminalBehavior())).register();
 
     public static ItemEntry<ComponentItem> WIRELESS_ENERGY_BINDING_TOOL = GTMTHINGS_REGISTRATE
             .item("wireless_energy_binding_tool", ComponentItem::create)

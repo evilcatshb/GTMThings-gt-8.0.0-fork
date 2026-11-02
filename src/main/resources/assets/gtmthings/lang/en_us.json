@@ -1,4 +1,4 @@
-{
+﻿{
   "block.gtmthings.creative_energy_hatch": "§rCreative Energy Hatch",
   "block.gtmthings.creative_laser_hatch": "§rCreative Laser Target Hatch",
   "block.gtmthings.lv_2a_wireless_energy_input_hatch": "§7LV Wireless Energy Hatch",
@@ -294,6 +294,10 @@
   "gtmthings.machine.wireless_energy_monitor.tooltip.statistics": "Electricity consumption statistics:",
   "gtmthings.machine.wireless_energy_monitor.tooltip.all": "All",
   "gtmthings.machine.wireless_energy_monitor.tooltip.team": "Team",
+  "gtmthings.machine.wireless_energy_monitor.tooltip.bind": "Wireless Energy Monitor bound to %s",
+  "gtmthings.machine.wireless_energy_monitor.tooltip.unbind": "Wireless Energy Monitor unbound!",
+  "gtmthings.machine.wireless_energy_monitor.tooltip.not_bound": "§eNot bound! Right-click with a Data Stick to bind this monitor to your wireless energy network.",
+  "gtmthings.machine.wireless_energy_monitor.tooltip.no_data": "§7No wireless energy data yet for this network.",
   "gtmthings.machine.wireless_energy_interface.tooltip": "Receives energy and sends it to the power network",
   "gtmthings.machine.wireless_energy_cover.tooltip.1": "No owner",
   "gtmthings.machine.wireless_energy_cover.tooltip.2": "Bound to: %s",

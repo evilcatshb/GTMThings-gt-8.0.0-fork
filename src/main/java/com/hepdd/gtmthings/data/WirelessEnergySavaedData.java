@@ -25,7 +25,10 @@ public class WirelessEnergySavaedData extends SavedData {
     public static WirelessEnergySavaedData INSTANCE;
 
     public static WirelessEnergySavaedData getOrCreate(ServerLevel serverLevel) {
-        return serverLevel.getDataStorage().computeIfAbsent(WirelessEnergySavaedData::new, WirelessEnergySavaedData::new, "gtceu_wireless_energy");
+        WirelessEnergySavaedData data = serverLevel.getDataStorage().computeIfAbsent(
+                WirelessEnergySavaedData::new, WirelessEnergySavaedData::new, "gtceu_wireless_energy");
+        INSTANCE = data;
+        return data;
     }
 
     public final Map<UUID, WirelessEnergyContainer> containerMap = new HashMap<>();

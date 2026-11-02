@@ -13,7 +13,6 @@ import com.hepdd.gtmthings.api.misc.WirelessEnergyContainer;
 import com.hepdd.gtmthings.config.ConfigHolder;
 import com.hepdd.gtmthings.utils.BigIntegerUtils;
 import com.hepdd.gtmthings.utils.TeamUtil;
-import com.lowdragmc.lowdraglib.gui.widget.ComponentPanelWidget;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -21,17 +20,24 @@ import java.time.Duration;
 import java.util.*;
 
 import static com.hepdd.gtmthings.utils.FormatUtil.*;
-import static com.hepdd.gtmthings.utils.TeamUtil.GetName;
 
 public interface IWirelessMonitor extends IWirelessEnergyContainerHolder {
 
     default List<Component> getDisplayText(boolean all, int displayTextWidth) {
+        return getDisplayText(all, displayTextWidth, true);
+    }
+
+    /**
+     * Builds the monitor summary. When includeStatistics is false, the per-consumer
+     * statistics section is omitted so the GUI can render it in a separate viewport.
+     */
+    default List<Component> getDisplayText(boolean all, int displayTextWidth, boolean includeStatistics) {
         List<Component> textListCache = new ArrayList<>();
         displayTextWidth -= 16;
         WirelessEnergyContainer container = getWirelessEnergyContainer();
         if (container == null) return List.of();
         BigInteger energyTotal = container.getStorage();
-        textListCache.add(Component.translatable("gtmthings.machine.wireless_energy_monitor.tooltip.0", GetName(getLevel(), getUUID())).withStyle(ChatFormatting.AQUA));
+        textListCache.add(Component.translatable("gtmthings.machine.wireless_energy_monitor.tooltip.0", TeamUtil.getWirelessNetworkName(getLevel(), getUUID())).withStyle(ChatFormatting.AQUA));
         textListCache.add(formatWithConstantWidth("gtmthings.machine.wireless_energy_monitor.tooltip.1", Component.literal(formatBigIntegerNumberOrSic(energyTotal))).withStyle(ChatFormatting.GOLD));
         if (ConfigHolder.INSTANCE.isWirelessRateEnable) {
             long rate = container.getRate();
@@ -59,33 +65,72 @@ public interface IWirelessMonitor extends IWirelessEnergyContainerHolder {
         BigDecimal avgEnergy = stat.getAvgEnergy();
         textListCache.add(formatWithConstantWidth("gtmthings.machine.wireless_energy_monitor.tooltip.now", Component.literal(formatBigDecimalNumberOrSic(avgEnergy)).withStyle(ChatFormatting.DARK_PURPLE), Component.literal(voltageAmperage(avgEnergy).toEngineeringString()), voltageName(avgEnergy)));
 
-        int compare = avgEnergy.compareTo(BigDecimal.valueOf(0));
-        BigInteger multiply = avgEnergy.abs().toBigInteger().multiply(BigInteger.valueOf(20));
+        int compare = avgEnergy.compareTo(BigDecimal.ZERO);
         if (compare > 0) {
-            textListCache.add(Component.translatable("gtceu.multiblock.power_substation.time_to_fill",
-                    container.getCapacity() == null ? Component.translatable("gtmthings.machine.wireless_energy_monitor.tooltip.time_to_fill") : getTimeToFillDrainText((container.getCapacity().subtract(energyTotal)).divide(multiply))).withStyle(ChatFormatting.GRAY));
+            // avgEnergy is a BigDecimal EU/t value. It can legitimately be fractional
+            // (for example 0.05 EU/t). The old code converted it to BigInteger before
+            // multiplying by 20, which turned any non-zero value below 1 EU/t into 0
+            // and then divided by zero while constructing the GUI. A GUI-opening
+            // sync exception leaves ModularUI's container screen as a full-screen
+            // black overlay, which made this appear to be a random GUI/render bug.
+            BigInteger ratePerSecond = avgEnergy.multiply(BigDecimal.valueOf(20))
+                    .toBigInteger();
+            if (ratePerSecond.signum() > 0) {
+                BigInteger remaining = container.getCapacity() == null ? null : container.getCapacity().subtract(energyTotal);
+                Component time = remaining == null ? Component.translatable("gtmthings.machine.wireless_energy_monitor.tooltip.time_to_fill") : getTimeToFillDrainText(remaining.max(BigInteger.ZERO).divide(ratePerSecond));
+                textListCache.add(Component.translatable(
+                        "gtceu.multiblock.power_substation.time_to_fill", time)
+                        .withStyle(ChatFormatting.GRAY));
+            }
         } else if (compare < 0) {
-            textListCache.add(Component.translatable("gtceu.multiblock.power_substation.time_to_drain",
-                    getTimeToFillDrainText(energyTotal.divide(multiply))).withStyle(ChatFormatting.GRAY));
+            BigInteger ratePerSecond = avgEnergy.abs().multiply(BigDecimal.valueOf(20))
+                    .toBigInteger();
+            if (ratePerSecond.signum() > 0) {
+                textListCache.add(Component.translatable(
+                        "gtceu.multiblock.power_substation.time_to_drain",
+                        getTimeToFillDrainText(energyTotal.divide(ratePerSecond)))
+                        .withStyle(ChatFormatting.GRAY));
+            }
         }
 
         if (ConfigHolder.INSTANCE.isWirelessRateEnable && container.getBindPos() != null) {
             String pos = container.getBindPos().pos().toShortString();
             textListCache.add(Component.translatable("gtmthings.machine.wireless_energy_hatch.tooltip.2", Component.translatable("recipe.condition.dimension.tooltip", container.getBindPos().dimension().location().toString()).append(" [").append(pos).append("] ")).withStyle(ChatFormatting.GRAY));
         }
-        textListCache.add(Component.translatable("gtmthings.machine.wireless_energy_monitor.tooltip.statistics").append(ComponentPanelWidget.withButton(all ? Component.translatable("gtmthings.machine.wireless_energy_monitor.tooltip.all") : Component.translatable("gtmthings.machine.wireless_energy_monitor.tooltip.team"), "all")));
-
-        for (Map.Entry<MetaMachine, ITransferData> m : WirelessEnergyContainer.TRANSFER_DATA.entrySet().stream().sorted(Comparator.comparingLong(entry -> entry.getValue().Throughput())).toList()) {
-            UUID uuid = m.getValue().UUID();
-            if (all || uuid.equals(TeamUtil.getTeamUUID(this.getUUID()))) {
-                textListCache.add(m.getValue().getInfo());
-            }
+        if (includeStatistics) {
+            textListCache.add(Component.translatable("gtmthings.machine.wireless_energy_monitor.tooltip.statistics"));
+            textListCache.addAll(getTransferStatistics(all));
         }
 
-        WirelessEnergyContainer.observed = true;
-        WirelessEnergyContainer.TRANSFER_DATA.clear();
-
         return textListCache;
+    }
+
+    /**
+     * Read-only consumer view of the single server-published wireless transfer
+     * snapshot. The Terminal and Monitor both call this exact method, so they see
+     * the same authoritative producer/consumer entries. No GUI mutates or clears
+     * producer state.
+     */
+    default List<Component> getTransferStatistics(boolean all) {
+        List<Component> statistics = new ArrayList<>();
+        UUID teamUUID = this.getUUID();
+        // Both GUI consumers read ONLY the authoritative publisher snapshot.
+        // TRANSFER_DATA is the producer's private live write buffer; a GUI must never
+        // observe it directly, otherwise the two consumers can see different windows.
+        Map<MetaMachine, ITransferData> visibleData;
+        synchronized (WirelessEnergyContainer.TRANSFER_SNAPSHOT) {
+            visibleData = new HashMap<>(WirelessEnergyContainer.TRANSFER_SNAPSHOT);
+        }
+
+        for (Map.Entry<MetaMachine, ITransferData> entry : visibleData.entrySet().stream()
+                .sorted(Comparator.comparingLong(entry -> entry.getValue().Throughput()))
+                .toList()) {
+            UUID uuid = entry.getValue().UUID();
+            if (all || uuid.equals(teamUUID)) {
+                statistics.add(entry.getValue().getInfo());
+            }
+        }
+        return statistics;
     }
 
     Level getLevel();

@@ -36,6 +36,20 @@ import static com.hepdd.gtmthings.data.CustomItems.WIRELESS_ENERGY_BINDING_TOOL;
 public class GTMTRecipe {
 
     public static void init(Consumer<FinishedRecipe> provider) {
+        System.out.println("[GTMTRecipe] ======================================");
+        System.out.println("[GTMTRecipe] init() STARTED");
+        System.out.println("[GTMTRecipe] Provider class: " + provider.getClass().getName());
+        System.out.println("[GTMTRecipe] Starting recipe generation...");
+
+        final java.util.concurrent.atomic.AtomicInteger digitalMinerRecipes = new java.util.concurrent.atomic.AtomicInteger(0);
+        Consumer<FinishedRecipe> wrappedProvider = (recipe) -> {
+            String id = recipe.getId().toString();
+            if (id.contains("digital_miner")) {
+                digitalMinerRecipes.incrementAndGet();
+                System.out.println("[GTMTRecipe] *** DIGITAL MINER RECIPE: " + id);
+            }
+            provider.accept(recipe);
+        };
         GTRecipeTypes.ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("virtual_item_provider"))
                 .inputItems(GTItems.PROGRAMMED_CIRCUIT.asStack())
                 .inputItems(new ItemStack(AEBlocks.QUARTZ_VIBRANT_GLASS.block().asItem()))
@@ -43,17 +57,17 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.VIRTUAL_ITEM_PROVIDER.asStack())
                 .EUt(480)
                 .duration(200)
-                .save(provider);
+                .save(wrappedProvider);
 
         GTRecipeTypes.ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("virtual_item_provider_cell"))
-                .inputItems(new ItemStack(AEItems.ITEM_CELL_256K.asItem()))
+                .inputItems(AEItems.ITEM_CELL_256K.stack())
                 .inputItems(CustomItems.VIRTUAL_ITEM_PROVIDER.asStack())
                 .inputItems(GTItems.CONVEYOR_MODULE_HV.asStack(2))
                 .inputFluids(GTMaterials.Polyethylene.getFluid(288))
                 .outputItems(CustomItems.VIRTUAL_ITEM_PROVIDER_CELL.asStack())
                 .EUt(480)
                 .duration(800)
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder("cover_maintenance_detector")
                 .inputItems(GTItems.EMITTER_LV)
@@ -62,7 +76,7 @@ public class GTMTRecipe {
                 .inputFluids(GTMaterials.SolderingAlloy.getFluid(72))
                 .outputItems(GTItems.COVER_MAINTENANCE_DETECTOR)
                 .EUt(16).duration(100)
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_monitor"))
                 .inputItems(GTMachines.HULL[1].asStack())
@@ -75,7 +89,7 @@ public class GTMTRecipe {
                 .outputItems(WirelessMachines.WIRELESS_ENERGY_MONITOR.asStack())
                 .duration(400)
                 .EUt(GTValues.VA[GTValues.LV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_interface"))
                 .inputItems(GTMachines.ENERGY_INPUT_HATCH[1].asStack())
@@ -88,7 +102,7 @@ public class GTMTRecipe {
                 .outputItems(WirelessMachines.WIRELESS_ENERGY_INTERFACE.asStack())
                 .duration(400)
                 .EUt(GTValues.VA[GTValues.LV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_item_transfer_cover"))
                 .inputItems(GTItems.SENSOR_LV.asStack())
@@ -101,7 +115,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_ITEM_TRANSFER_COVER.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.LV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_fluid_transfer_cover"))
                 .inputItems(GTItems.SENSOR_LV.asStack())
@@ -114,7 +128,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_FLUID_TRANSFER_COVER.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.LV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_receive_cover_lv"))
                 .inputItems(GTItems.SENSOR_LV.asStack())
@@ -130,7 +144,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_LV.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.LV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_receive_cover_lv_4a"))
                 .inputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_LV.asStack(2))
@@ -142,7 +156,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_LV_4A.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.LV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_receive_cover_mv"))
                 .inputItems(GTItems.SENSOR_MV.asStack())
@@ -158,7 +172,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_MV.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.MV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_receive_cover_mv_4a"))
                 .inputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_MV.asStack(2))
@@ -170,7 +184,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_MV_4A.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.MV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_receive_cover_hv"))
                 .inputItems(GTItems.SENSOR_HV.asStack())
@@ -186,7 +200,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_HV.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.HV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_receive_cover_hv_4a"))
                 .inputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_HV.asStack(2))
@@ -198,7 +212,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_HV_4A.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.HV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_receive_cover_ev"))
                 .inputItems(GTItems.SENSOR_EV.asStack())
@@ -214,7 +228,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_EV.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.EV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_receive_cover_ev_4a"))
                 .inputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_EV.asStack(2))
@@ -226,7 +240,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_EV_4A.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.EV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_receive_cover_iv"))
                 .inputItems(GTItems.SENSOR_IV.asStack())
@@ -242,7 +256,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_IV.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.IV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_receive_cover_iv_4a"))
                 .inputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_IV.asStack(2))
@@ -254,7 +268,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_IV_4A.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.IV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_receive_cover_luv"))
                 .inputItems(GTItems.SENSOR_LuV.asStack())
@@ -270,7 +284,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_LUV.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.LuV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_receive_cover_luv_4a"))
                 .inputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_LUV.asStack(2))
@@ -282,7 +296,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_LUV_4A.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.LuV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_receive_cover_zpm"))
                 .inputItems(GTItems.SENSOR_ZPM.asStack())
@@ -298,7 +312,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_ZPM.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.ZPM])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_receive_cover_zpm_4a"))
                 .inputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_ZPM.asStack(2))
@@ -310,7 +324,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_ZPM_4A.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.ZPM])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_receive_cover_uv"))
                 .inputItems(GTItems.SENSOR_UV.asStack())
@@ -326,7 +340,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_UV.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.UV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_receive_cover_uv_4a"))
                 .inputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_UV.asStack(2))
@@ -338,7 +352,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_UV_4A.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.UV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_receive_cover_uhv"))
                 .inputItems(GTItems.SENSOR_UHV.asStack())
@@ -354,7 +368,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_UHV.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.UHV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_receive_cover_uhv_4a"))
                 .inputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_UHV.asStack(2))
@@ -366,7 +380,7 @@ public class GTMTRecipe {
                 .outputItems(CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_UHV_4A.asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.UHV])
-                .save(provider);
+                .save(wrappedProvider);
 
         List<ItemEntry<ComponentItem>> WIRELESS_ENERGY_RECEIVE_COVER = new java.util.ArrayList<>(List.of(
                 CustomItems.WIRELESS_ENERGY_RECEIVE_COVER_LV,
@@ -416,7 +430,7 @@ public class GTMTRecipe {
                     .outputItems(WirelessMachines.WIRELESS_ENERGY_INPUT_HATCH[tier].asStack())
                     .duration(200)
                     .EUt(GTValues.VA[tier])
-                    .save(provider);
+                    .save(wrappedProvider);
 
             ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_output_hatch_" + GTValues.VN[tier].toLowerCase()))
                     .inputItems(GTMachines.ENERGY_OUTPUT_HATCH[tier].asStack())
@@ -426,7 +440,7 @@ public class GTMTRecipe {
                     .outputItems(WirelessMachines.WIRELESS_ENERGY_OUTPUT_HATCH[tier].asStack())
                     .duration(200)
                     .EUt(GTValues.VA[tier])
-                    .save(provider);
+                    .save(wrappedProvider);
         }
 
         if (GTCEuAPI.isHighTier()) {
@@ -438,7 +452,7 @@ public class GTMTRecipe {
                     .outputItems(CustomMachines.PROGRAMMABLEC_HATCH[GTValues.MAX].asStack())
                     .duration(400)
                     .EUt(GTValues.VA[GTValues.MAX])
-                    .save(provider);
+                    .save(wrappedProvider);
         }
 
         for (int tier : GTValues.tiersBetween(GTValues.EV, GTCEuAPI.isHighTier() ? GTValues.MAX : GTValues.UV)) {
@@ -452,7 +466,7 @@ public class GTMTRecipe {
                         .outputItems(CustomMachines.PROGRAMMABLEC_HATCH[tier].asStack())
                         .duration(400)
                         .EUt(GTValues.VA[tier])
-                        .save(provider);
+                        .save(wrappedProvider);
             }
 
             if (GTMachines.ENERGY_INPUT_HATCH_4A[tier] == null) continue;
@@ -464,7 +478,7 @@ public class GTMTRecipe {
                     .outputItems(WirelessMachines.WIRELESS_ENERGY_INPUT_HATCH_4A[tier].asStack())
                     .duration(200)
                     .EUt(GTValues.VA[tier])
-                    .save(provider);
+                    .save(wrappedProvider);
 
             ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_output_hatch_" + GTValues.VN[tier].toLowerCase() + "_4a"))
                     .inputItems(GTMachines.ENERGY_OUTPUT_HATCH_4A[tier].asStack())
@@ -474,7 +488,7 @@ public class GTMTRecipe {
                     .outputItems(WirelessMachines.WIRELESS_ENERGY_OUTPUT_HATCH_4A[tier].asStack())
                     .duration(200)
                     .EUt(GTValues.VA[tier])
-                    .save(provider);
+                    .save(wrappedProvider);
 
             if (GTMachines.ENERGY_INPUT_HATCH_16A[tier] == null) continue;
             ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_input_hatch_" + GTValues.VN[tier].toLowerCase() + "_16a"))
@@ -485,7 +499,7 @@ public class GTMTRecipe {
                     .outputItems(WirelessMachines.WIRELESS_ENERGY_INPUT_HATCH_16A[tier].asStack())
                     .duration(200)
                     .EUt(GTValues.VA[tier])
-                    .save(provider);
+                    .save(wrappedProvider);
 
             ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_output_hatch_" + GTValues.VN[tier].toLowerCase() + "_16a"))
                     .inputItems(GTMachines.ENERGY_OUTPUT_HATCH_16A[tier].asStack())
@@ -495,7 +509,7 @@ public class GTMTRecipe {
                     .outputItems(WirelessMachines.WIRELESS_ENERGY_OUTPUT_HATCH_16A[tier].asStack())
                     .duration(200)
                     .EUt(GTValues.VA[tier])
-                    .save(provider);
+                    .save(wrappedProvider);
         }
 
         for (int tier : GTValues.tiersBetween(GTValues.IV, GTCEuAPI.isHighTier() ? GTValues.MAX : GTValues.UV)) {
@@ -512,7 +526,7 @@ public class GTMTRecipe {
                     .outputItems(WirelessMachines.WIRELESS_ENERGY_INPUT_HATCH_256A[tier].asStack())
                     .duration(200)
                     .EUt(GTValues.VA[tier])
-                    .save(provider);
+                    .save(wrappedProvider);
 
             ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_input_hatch_" + GTValues.VN[tier].toLowerCase() + "_1024a"))
                     .inputItems(GTMachines.LASER_INPUT_HATCH_1024[tier].asStack())
@@ -524,7 +538,7 @@ public class GTMTRecipe {
                     .outputItems(WirelessMachines.WIRELESS_ENERGY_INPUT_HATCH_1024A[tier].asStack())
                     .duration(200)
                     .EUt(GTValues.VA[tier])
-                    .save(provider);
+                    .save(wrappedProvider);
 
             ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_input_hatch_" + GTValues.VN[tier].toLowerCase() + "_4096a"))
                     .inputItems(GTMachines.LASER_INPUT_HATCH_4096[tier].asStack())
@@ -536,7 +550,7 @@ public class GTMTRecipe {
                     .outputItems(WirelessMachines.WIRELESS_ENERGY_INPUT_HATCH_4096A[tier].asStack())
                     .duration(200)
                     .EUt(GTValues.VA[tier])
-                    .save(provider);
+                    .save(wrappedProvider);
 
             ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_output_hatch_" + GTValues.VN[tier].toLowerCase() + "_256a"))
                     .inputItems(GTMachines.LASER_OUTPUT_HATCH_256[tier].asStack())
@@ -548,7 +562,7 @@ public class GTMTRecipe {
                     .outputItems(WirelessMachines.WIRELESS_ENERGY_OUTPUT_HATCH_256A[tier].asStack())
                     .duration(200)
                     .EUt(GTValues.VA[tier])
-                    .save(provider);
+                    .save(wrappedProvider);
 
             ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_output_hatch_" + GTValues.VN[tier].toLowerCase() + "_1024a"))
                     .inputItems(GTMachines.LASER_OUTPUT_HATCH_1024[tier].asStack())
@@ -560,7 +574,7 @@ public class GTMTRecipe {
                     .outputItems(WirelessMachines.WIRELESS_ENERGY_OUTPUT_HATCH_1024A[tier].asStack())
                     .duration(200)
                     .EUt(GTValues.VA[tier])
-                    .save(provider);
+                    .save(wrappedProvider);
 
             ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_energy_output_hatch_" + GTValues.VN[tier].toLowerCase() + "_4096a"))
                     .inputItems(GTMachines.LASER_OUTPUT_HATCH_4096[tier].asStack())
@@ -572,7 +586,7 @@ public class GTMTRecipe {
                     .outputItems(WirelessMachines.WIRELESS_ENERGY_OUTPUT_HATCH_4096A[tier].asStack())
                     .duration(200)
                     .EUt(GTValues.VA[tier])
-                    .save(provider);
+                    .save(wrappedProvider);
         }
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("lv_digital_miner"))
@@ -586,7 +600,7 @@ public class GTMTRecipe {
                 .outputItems(CustomMachines.DIGITAL_MINER[GTValues.LV].asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.LV])
-                .save(provider);
+                .save(wrappedProvider);
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("mv_digital_miner"))
                 .inputItems(GTMachines.MINER[GTValues.MV].asStack())
                 .inputItems(GTItems.CONVEYOR_MODULE_MV.asStack(2))
@@ -598,7 +612,7 @@ public class GTMTRecipe {
                 .outputItems(CustomMachines.DIGITAL_MINER[GTValues.MV].asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.MV])
-                .save(provider);
+                .save(wrappedProvider);
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("hv_digital_miner"))
                 .inputItems(GTMachines.MINER[GTValues.HV].asStack())
                 .inputItems(GTItems.CONVEYOR_MODULE_HV.asStack(2))
@@ -610,7 +624,7 @@ public class GTMTRecipe {
                 .outputItems(CustomMachines.DIGITAL_MINER[GTValues.HV].asStack())
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.HV])
-                .save(provider);
+                .save(wrappedProvider);
         for (int tier : GTValues.tiersBetween(GTValues.LV, GTCEuAPI.isHighTier() ? GTValues.MAX : GTValues.UV)) {
             if (GTMachines.ITEM_IMPORT_BUS[tier] == null) continue;
             if (GTMachines.ITEM_EXPORT_BUS[tier] == null) continue; // add this
@@ -623,7 +637,7 @@ public class GTMTRecipe {
                     .outputItems(CustomMachines.HUGE_ITEM_IMPORT_BUS[tier].asStack())
                     .duration(200)
                     .EUt(GTValues.VA[tier])
-                    .save(provider);
+                    .save(wrappedProvider);
             ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("huge_item_export_bus_" + GTValues.VN[tier].toLowerCase()))
                     .inputItems(GTMachines.ITEM_EXPORT_BUS[tier].asStack())
                     .inputItems(chest)
@@ -631,7 +645,7 @@ public class GTMTRecipe {
                     .outputItems(CustomMachines.HUGE_ITEM_EXPORT_BUS[tier].asStack())
                     .duration(200)
                     .EUt(GTValues.VA[tier])
-                    .save(provider);
+                    .save(wrappedProvider);
         }
 
         for (int tier : GTValues.tiersBetween(GTValues.LV, GTCEuAPI.isHighTier() ? GTValues.MAX : GTValues.UV)) {
@@ -645,7 +659,7 @@ public class GTMTRecipe {
                     .outputItems(CustomMachines.HUGE_INPUT_DUAL_HATCH[tier].asStack())
                     .duration(200)
                     .EUt(GTValues.VA[tier])
-                    .save(provider);
+                    .save(wrappedProvider);
         }
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("me_export_buffer"))
@@ -655,7 +669,7 @@ public class GTMTRecipe {
                 .outputItems(CustomMachines.ME_EXPORT_BUFFER.asStack())
                 .duration(400)
                 .EUt(GTValues.VA[GTValues.HV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_computation_transmitter_hatch"))
                 .inputItems(GTResearchMachines.COMPUTATION_HATCH_TRANSMITTER.asStack())
@@ -666,7 +680,7 @@ public class GTMTRecipe {
                 .cleanroom(CleanroomType.CLEANROOM)
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.ZPM])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("wireless_computation_receiver_hatch"))
                 .inputItems(GTResearchMachines.COMPUTATION_HATCH_TRANSMITTER.asStack())
@@ -677,7 +691,7 @@ public class GTMTRecipe {
                 .cleanroom(CleanroomType.CLEANROOM)
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.ZPM])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("advanced_wireless_item_transfer_cover"))
                 .inputItems(CustomItems.WIRELESS_ITEM_TRANSFER_COVER.asStack())
@@ -686,7 +700,7 @@ public class GTMTRecipe {
                 .inputFluids(GTMaterials.SolderingAlloy.getFluid(72))
                 .duration(100)
                 .EUt(GTValues.VA[GTValues.LV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("advanced_wireless_fluid_transfer_cover"))
                 .inputItems(CustomItems.WIRELESS_FLUID_TRANSFER_COVER.asStack())
@@ -695,7 +709,7 @@ public class GTMTRecipe {
                 .inputFluids(GTMaterials.SolderingAlloy.getFluid(72))
                 .duration(100)
                 .EUt(GTValues.VA[GTValues.LV])
-                .save(provider);
+                .save(wrappedProvider);
 
         ASSEMBLER_RECIPES.recipeBuilder(GTMThings.id("programmable_cover"))
                 .inputItems(GTItems.ROBOT_ARM_LV.asStack(2))
@@ -705,7 +719,7 @@ public class GTMTRecipe {
                 .inputFluids(GTMaterials.SolderingAlloy.getFluid(144))
                 .duration(200)
                 .EUt(GTValues.VA[GTValues.LV])
-                .save(provider);
+                .save(wrappedProvider);
 
         VanillaRecipeHelper.addShapedRecipe(provider, true, GTMThings.id("advanced_terminal"), ADVANCED_TERMINAL.asStack(),
                 "SGS", "PBP", "PWP",
@@ -717,5 +731,9 @@ public class GTMTRecipe {
 
         VanillaRecipeHelper.addShapedRecipe(provider, true, GTMThings.id("wireless_energy_binding_tool"), WIRELESS_ENERGY_BINDING_TOOL.asStack(),
                 "A", 'A', Items.PAPER);
+        System.out.println("[GTMTRecipe] ======================================");
+        System.out.println("[GTMTRecipe] init() COMPLETED");
+        System.out.println("[GTMTRecipe] Digital Miner recipes generated: " + digitalMinerRecipes.get());
+        System.out.println("[GTMTRecipe] ======================================");
     }
 }

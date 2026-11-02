@@ -1,7 +1,7 @@
 package com.hepdd.gtmthings.integration.jade;
 
 import com.gregtechceu.gtceu.api.block.MetaMachineBlock;
-import com.gregtechceu.gtceu.api.blockentity.MetaMachineBlockEntity;
+import com.gregtechceu.gtceu.api.machine.MetaMachine;
 
 import com.hepdd.gtmthings.integration.jade.provider.WirelessEnergyHatchProvider;
 import com.hepdd.gtmthings.integration.jade.provider.WirelessOpticalComputationHatchProvider;
@@ -15,8 +15,8 @@ public class GTJadePlugin implements IWailaPlugin {
 
     @Override
     public void register(IWailaCommonRegistration registration) {
-        registration.registerBlockDataProvider(new WirelessEnergyHatchProvider(), MetaMachineBlockEntity.class);
-        registration.registerBlockDataProvider(new WirelessOpticalComputationHatchProvider(), MetaMachineBlockEntity.class);
+        registration.registerBlockDataProvider(new WirelessEnergyHatchProvider(), MetaMachine.class);
+        registration.registerBlockDataProvider(new WirelessOpticalComputationHatchProvider(), MetaMachine.class);
     }
 
     @Override

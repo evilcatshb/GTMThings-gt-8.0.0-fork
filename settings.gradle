@@ -10,7 +10,7 @@ pluginManagement {
 dependencyResolutionManagement {
     versionCatalogs {
         libs {
-            version("modDevGradleLegacy", "2.0.86")
+            version("modDevGradleLegacy", "2.0.91")
             version("lombok", "8.11")
             version("spotless", "7.0.2")
 

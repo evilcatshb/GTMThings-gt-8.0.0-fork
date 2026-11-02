@@ -8,6 +8,7 @@ import com.gregtechceu.gtceu.api.cover.CoverDefinition;
 import com.gregtechceu.gtceu.api.machine.MetaMachine;
 import com.gregtechceu.gtceu.api.machine.TickableSubscription;
 import com.gregtechceu.gtceu.api.machine.TieredEnergyMachine;
+import com.gregtechceu.gtceu.api.sync_system.annotations.SaveField;
 import com.gregtechceu.gtceu.common.machine.electric.BatteryBufferMachine;
 import com.gregtechceu.gtceu.common.machine.electric.HullMachine;
 
@@ -38,6 +39,11 @@ public class WirelessEnergyReceiveCover extends CoverBehavior implements IWirele
     @Getter
     @Setter
     private WirelessEnergyContainer WirelessEnergyContainerCache;
+
+    /** Canonical persisted wireless network identity (FTB team UUID, or player UUID without a team). */
+    @SaveField
+    @Nullable
+    private UUID wirelessTeamUUID;
 
     private MetaMachine machine;
 
@@ -77,15 +83,33 @@ public class WirelessEnergyReceiveCover extends CoverBehavior implements IWirele
     public void onAttached(ItemStack itemStack, ServerPlayer player) {
         super.onAttached(itemStack, player);
         MetaMachine machine = getMachine();
-        if (machine != null && getUUID() == null) {
+        if (machine != null && machine.getOwnerUUID() == null) {
             machine.setOwnerUUID(player.getUUID());
         }
+        // Persist the exact network selected at binding time. Do not rely on the
+        // machine owner after this point; ownership and network identity are distinct.
+        wirelessTeamUUID = com.hepdd.gtmthings.utils.TeamUtil.getWirelessNetworkUUID(player.getUUID());
+        WirelessEnergyContainerCache = null;
+        markAsChanged();
         updateCoverSub();
     }
 
     @Override
     public void onLoad() {
         super.onLoad();
+        if (!coverHolder.isRemote()) {
+            // Migrate covers saved by older GTMThings builds which had no explicit network ID.
+            if (wirelessTeamUUID == null) {
+                MetaMachine loadedMachine = getMachine();
+                if (loadedMachine != null && loadedMachine.getOwnerUUID() != null) {
+                    wirelessTeamUUID = com.hepdd.gtmthings.utils.TeamUtil.getWirelessNetworkUUID(loadedMachine.getOwnerUUID());
+                    markAsChanged();
+                }
+            }
+            // Runtime container references are never persisted. Re-resolve from the
+            // canonical UUID once the machine is fully loaded on the server.
+            WirelessEnergyContainerCache = null;
+        }
         updateCoverSub();
     }
 
@@ -101,12 +125,20 @@ public class WirelessEnergyReceiveCover extends CoverBehavior implements IWirele
     }
 
     private void updateCoverSub() {
+        if (coverHolder.isRemote()) return;
+        if (getUUID() == null) {
+            if (subscription != null) {
+                subscription.unsubscribe();
+                subscription = null;
+            }
+            return;
+        }
         subscription = coverHolder.subscribeServerTick(subscription, this::updateEnergy);
     }
 
     private void updateEnergy() {
         if (getUUID() == null) return;
-        var energyContainer = getEnergyContainer(coverHolder.getLevel(), coverHolder.getPos(), attachedSide);
+        var energyContainer = getEnergyContainer(coverHolder.getLevel(), coverHolder.getBlockPos(), attachedSide);
         if (energyContainer != null) {
             var machine = getMachine();
             if (machine instanceof BatteryBufferMachine || machine instanceof HullMachine || machine instanceof WirelessEnergyReceiveCoverHolder) {
@@ -131,9 +163,7 @@ public class WirelessEnergyReceiveCover extends CoverBehavior implements IWirele
     @Override
     @Nullable
     public UUID getUUID() {
-        MetaMachine machine = getMachine();
-        if (machine != null) return machine.getOwnerUUID();
-        return null;
+        return wirelessTeamUUID;
     }
 
     @Override
@@ -143,7 +173,7 @@ public class WirelessEnergyReceiveCover extends CoverBehavior implements IWirele
 
     @Nullable
     private MetaMachine getMachine() {
-        if (machine == null) machine = MetaMachine.getMachine(coverHolder.getLevel(), coverHolder.getPos());
+        if (machine == null) machine = MetaMachine.getMachine(coverHolder.getLevel(), coverHolder.getBlockPos());
         if (machine instanceof TieredEnergyMachine tieredEnergyMachine) {
             this.machineMaxEnergy = GTValues.VEX[tieredEnergyMachine.getTier()] << 6;
         }

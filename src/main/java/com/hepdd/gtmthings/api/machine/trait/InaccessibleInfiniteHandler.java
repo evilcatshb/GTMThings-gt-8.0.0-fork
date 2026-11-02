@@ -1,8 +1,7 @@
 package com.hepdd.gtmthings.api.machine.trait;
 
 import com.gregtechceu.gtceu.api.capability.recipe.IO;
-import com.gregtechceu.gtceu.api.machine.MetaMachine;
-import com.gregtechceu.gtceu.api.machine.trait.NotifiableItemStackHandler;
+import com.gregtechceu.gtceu.api.machine.trait.notifiable.NotifiableItemStackHandler;
 import com.gregtechceu.gtceu.api.recipe.GTRecipe;
 import com.gregtechceu.gtceu.api.recipe.ingredient.SizedIngredient;
 import com.gregtechceu.gtceu.api.transfer.item.CustomItemStackHandler;
@@ -21,8 +20,8 @@ public class InaccessibleInfiniteHandler extends NotifiableItemStackHandler {
 
     private final ItemStackHandlerDelegate delegate;
 
-    public InaccessibleInfiniteHandler(MetaMachine holder, KeyStorage internalBuffer) {
-        super(holder, 1, IO.OUT, IO.NONE, i -> new ItemStackHandlerDelegate(internalBuffer));
+    public InaccessibleInfiniteHandler(KeyStorage internalBuffer) {
+        super(1, IO.OUT, IO.NONE, i -> new ItemStackHandlerDelegate(internalBuffer));
         internalBuffer.setOnContentsChanged(this::onContentsChanged);
         delegate = ((ItemStackHandlerDelegate) storage);
     }

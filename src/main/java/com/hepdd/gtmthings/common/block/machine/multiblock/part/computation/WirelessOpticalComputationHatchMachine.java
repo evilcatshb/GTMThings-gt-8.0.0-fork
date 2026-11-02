@@ -1,26 +1,23 @@
 package com.hepdd.gtmthings.common.block.machine.multiblock.part.computation;
 
+import com.gregtechceu.gtceu.api.blockentity.BlockEntityCreationInfo;
 import com.gregtechceu.gtceu.api.capability.recipe.IO;
-import com.gregtechceu.gtceu.api.machine.IMachineBlockEntity;
 import com.gregtechceu.gtceu.api.machine.MetaMachine;
 import com.gregtechceu.gtceu.api.machine.feature.IDataStickInteractable;
 import com.gregtechceu.gtceu.api.machine.multiblock.part.MultiblockPartMachine;
+import com.gregtechceu.gtceu.api.sync_system.annotations.SaveField;
 
 import net.minecraft.MethodsReturnNonnullByDefault;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.BlockHitResult;
 
 import com.hepdd.gtmthings.api.capability.IGTMTJadeIF;
 import com.hepdd.gtmthings.common.block.machine.trait.WirelessNotifiableComputationContainer;
-import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
-import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
 import lombok.Getter;
 
 import javax.annotation.ParametersAreNonnullByDefault;
@@ -28,28 +25,21 @@ import javax.annotation.ParametersAreNonnullByDefault;
 @Getter
 @MethodsReturnNonnullByDefault
 @ParametersAreNonnullByDefault
-public class WirelessOpticalComputationHatchMachine extends MultiblockPartMachine implements IDataStickInteractable, IGTMTJadeIF {
-
-    protected static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(
-            WirelessOpticalComputationHatchMachine.class, MultiblockPartMachine.MANAGED_FIELD_HOLDER);
-
-    @Override
-    public ManagedFieldHolder getFieldHolder() {
-        return MANAGED_FIELD_HOLDER;
-    }
+public class WirelessOpticalComputationHatchMachine extends MultiblockPartMachine
+                                                    implements IDataStickInteractable, IGTMTJadeIF {
 
     private final boolean transmitter;
 
-    @Persisted
+    @SaveField
     private BlockPos transmitterPos;
-    @Persisted
+    @SaveField
     private BlockPos receiverPos;
     protected WirelessNotifiableComputationContainer computationContainer;
 
-    public WirelessOpticalComputationHatchMachine(IMachineBlockEntity holder, boolean transmitter) {
-        super(holder);
+    public WirelessOpticalComputationHatchMachine(BlockEntityCreationInfo info, boolean transmitter) {
+        super(info);
         this.transmitter = transmitter;
-        this.computationContainer = createComputationContainer(transmitter);
+        this.computationContainer = attachTrait(createComputationContainer(transmitter));
     }
 
     protected WirelessNotifiableComputationContainer createComputationContainer(Object... args) {
@@ -57,19 +47,14 @@ public class WirelessOpticalComputationHatchMachine extends MultiblockPartMachin
         if (args.length > 1 && args[args.length - 2] instanceof IO newIo) {
             io = newIo;
         }
-        if (args.length > 0 && args[args.length - 1] instanceof Boolean transmitter) {
-            return new WirelessNotifiableComputationContainer(this, io, transmitter);
+        if (args.length > 0 && args[args.length - 1] instanceof Boolean tx) {
+            return new WirelessNotifiableComputationContainer(io, tx);
         }
-        throw new IllegalArgumentException();
+        throw new IllegalArgumentException("Missing transmitter flag");
     }
 
     @Override
-    public boolean shouldOpenUI(Player player, InteractionHand hand, BlockHitResult hit) {
-        return false;
-    }
-
-    @Override
-    public boolean canShared() {
+    public boolean canShared(com.gregtechceu.gtceu.api.machine.multiblock.MultiblockControllerMachine controller, String substructureName) {
         return false;
     }
 
@@ -94,10 +79,8 @@ public class WirelessOpticalComputationHatchMachine extends MultiblockPartMachin
     private void setTransmitterPos(BlockPos pos) {
         if (transmitterPos != null) {
             var level = getLevel();
-            if (level != null) {
-                if (MetaMachine.getMachine(level, transmitterPos) instanceof WirelessOpticalComputationHatchMachine machine) {
-                    machine.receiverPos = null;
-                }
+            if (level != null && MetaMachine.getMachine(level, transmitterPos) instanceof WirelessOpticalComputationHatchMachine machine) {
+                machine.receiverPos = null;
             }
         }
         transmitterPos = pos;
@@ -106,10 +89,8 @@ public class WirelessOpticalComputationHatchMachine extends MultiblockPartMachin
     private void setReceiverPos(BlockPos pos) {
         if (receiverPos != null) {
             var level = getLevel();
-            if (level != null) {
-                if (MetaMachine.getMachine(level, receiverPos) instanceof WirelessOpticalComputationHatchMachine machine) {
-                    machine.transmitterPos = null;
-                }
+            if (level != null && MetaMachine.getMachine(level, receiverPos) instanceof WirelessOpticalComputationHatchMachine machine) {
+                machine.transmitterPos = null;
             }
         }
         receiverPos = pos;
@@ -130,15 +111,16 @@ public class WirelessOpticalComputationHatchMachine extends MultiblockPartMachin
     @Override
     public InteractionResult onDataStickShiftUse(Player player, ItemStack dataStick) {
         if (isRemote()) return InteractionResult.SUCCESS;
-
         CompoundTag tag = dataStick.getOrCreateTag();
-        BlockPos currentPos = getPos();
+        BlockPos currentPos = getBlockPos();
         if (isTransmitter()) {
             tag.put(KEY_TRANSMITTER, createPos(currentPos));
-            player.sendSystemMessage(Component.translatable("gtmthings.machine.wireless_computation_transmitter_hatch.tobind"));
+            player.sendSystemMessage(Component.translatable(
+                    "gtmthings.machine.wireless_computation_transmitter_hatch.tobind"));
         } else {
             tag.put(KEY_RECEIVER, createPos(currentPos));
-            player.sendSystemMessage(Component.translatable("gtmthings.machine.wireless_computation_receiver_hatch.tobind"));
+            player.sendSystemMessage(Component.translatable(
+                    "gtmthings.machine.wireless_computation_receiver_hatch.tobind"));
         }
         return InteractionResult.SUCCESS;
     }
@@ -146,42 +128,31 @@ public class WirelessOpticalComputationHatchMachine extends MultiblockPartMachin
     @Override
     public InteractionResult onDataStickUse(Player player, ItemStack dataStick) {
         if (isRemote()) return InteractionResult.sidedSuccess(true);
-
         CompoundTag tag = dataStick.getTag();
         if (tag == null) return InteractionResult.PASS;
-
         if (isTransmitter() && tag.contains(KEY_RECEIVER, 10)) {
             BlockPos otherPos = getPos(tag.getCompound(KEY_RECEIVER));
-            if (bindWith(otherPos, player)) {
-                return InteractionResult.SUCCESS;
-            }
+            if (bindWith(otherPos, player)) return InteractionResult.SUCCESS;
         } else if (!isTransmitter() && tag.contains(KEY_TRANSMITTER, 10)) {
             BlockPos otherPos = getPos(tag.getCompound(KEY_TRANSMITTER));
-            if (bindWith(otherPos, player)) {
-                return InteractionResult.SUCCESS;
-            }
+            if (bindWith(otherPos, player)) return InteractionResult.SUCCESS;
         }
-
         return InteractionResult.PASS;
     }
 
     private boolean bindWith(BlockPos otherPos, Player player) {
         Level level = getLevel();
-        if (level == null || otherPos.equals(this.getPos())) return false;
-
+        if (level == null || otherPos.equals(this.getBlockPos())) return false;
         MetaMachine otherMachine = MetaMachine.getMachine(level, otherPos);
         if (otherMachine instanceof WirelessOpticalComputationHatchMachine otherWoch) {
-            if (this.isTransmitter() == otherWoch.isTransmitter()) {
-                return false;
-            }
+            if (this.isTransmitter() == otherWoch.isTransmitter()) return false;
             if (isTransmitter()) {
                 this.setReceiverPos(otherPos);
-                otherWoch.setTransmitterPos(this.getPos());
+                otherWoch.setTransmitterPos(this.getBlockPos());
             } else {
                 this.setTransmitterPos(otherPos);
-                otherWoch.setReceiverPos(this.getPos());
+                otherWoch.setReceiverPos(this.getBlockPos());
             }
-
             player.sendSystemMessage(Component.translatable("gtmthings.machine.wireless_computation_hatch.binded"));
             return true;
         }

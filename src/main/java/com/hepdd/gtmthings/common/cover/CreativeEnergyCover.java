@@ -8,15 +8,12 @@ import com.gregtechceu.gtceu.api.cover.CoverDefinition;
 import com.gregtechceu.gtceu.api.machine.MetaMachine;
 import com.gregtechceu.gtceu.api.machine.TickableSubscription;
 import com.gregtechceu.gtceu.api.machine.TieredEnergyMachine;
+import com.gregtechceu.gtceu.api.sync_system.annotations.SaveField;
 
 import net.minecraft.MethodsReturnNonnullByDefault;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
-
-import com.lowdragmc.lowdraglib.syncdata.annotation.Persisted;
-import com.lowdragmc.lowdraglib.syncdata.field.ManagedFieldHolder;
-import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
@@ -27,24 +24,16 @@ import static com.gregtechceu.gtceu.api.capability.GTCapabilityHelper.getEnergyC
 @MethodsReturnNonnullByDefault
 public class CreativeEnergyCover extends CoverBehavior {
 
-    protected static final ManagedFieldHolder MANAGED_FIELD_HOLDER = new ManagedFieldHolder(CreativeEnergyCover.class,
-            CoverBehavior.MANAGED_FIELD_HOLDER);
-
     private TickableSubscription subscription;
 
-    @Persisted
+    @SaveField
     private long energyPerTick;
-    @Persisted
+    @SaveField
     private int tier;
-    @Persisted
+    @SaveField
     private int amperage;
-    @Persisted
+    @SaveField
     private long machineMaxEnergy;
-
-    @Override
-    public @NotNull ManagedFieldHolder getFieldHolder() {
-        return MANAGED_FIELD_HOLDER;
-    }
 
     public CreativeEnergyCover(CoverDefinition definition, ICoverable coverHolder, Direction attachedSide) {
         super(definition, coverHolder, attachedSide);
@@ -56,15 +45,13 @@ public class CreativeEnergyCover extends CoverBehavior {
     @Override
     public boolean canAttach() {
         var machine = getMachine();
-        if (machine instanceof TieredEnergyMachine tieredEnergyMachine && tieredEnergyMachine.energyContainer.getHandlerIO() == IO.IN) {
-            var covers = tieredEnergyMachine.getCoverContainer().getCovers();
-            for (var cover : covers) {
+        if (machine instanceof TieredEnergyMachine tem && tem.energyContainer.getHandlerIO() == IO.IN) {
+            for (var cover : tem.getCoverContainer().getCovers()) {
                 if (cover instanceof CreativeEnergyCover) return false;
             }
             return true;
-        } else {
-            return false;
         }
+        return false;
     }
 
     @Override
@@ -85,10 +72,10 @@ public class CreativeEnergyCover extends CoverBehavior {
     public void onAttached(ItemStack itemStack, ServerPlayer player) {
         super.onAttached(itemStack, player);
         var machine = getMachine();
-        if (machine instanceof TieredEnergyMachine tieredEnergyMachine) {
-            this.tier = tieredEnergyMachine.getTier();
+        if (machine instanceof TieredEnergyMachine tem) {
+            this.tier = tem.getTier();
             this.energyPerTick = GTValues.VEX[this.tier] * amperage;
-            this.machineMaxEnergy = GTValues.VEX[tieredEnergyMachine.getTier()] << 6;
+            this.machineMaxEnergy = GTValues.VEX[tem.getTier()] << 6;
         }
         updateCoverSub();
     }
@@ -98,17 +85,16 @@ public class CreativeEnergyCover extends CoverBehavior {
     }
 
     private void updateEnergy() {
-        var energyContainer = getEnergyContainer(coverHolder.getLevel(), coverHolder.getPos(), attachedSide);
+        var energyContainer = getEnergyContainer(coverHolder.getLevel(), coverHolder.getBlockPos(), attachedSide);
         if (energyContainer != null) {
             var changeStored = Math.min(this.machineMaxEnergy - energyContainer.getEnergyStored(), this.energyPerTick);
-            if (changeStored <= 0) return;
-            energyContainer.addEnergy(changeStored);
+            if (changeStored > 0) energyContainer.addEnergy(changeStored);
         }
         updateCoverSub();
     }
 
     @Nullable
     private MetaMachine getMachine() {
-        return MetaMachine.getMachine(coverHolder.getLevel(), coverHolder.getPos());
+        return MetaMachine.getMachine(coverHolder.getLevel(), coverHolder.getBlockPos());
     }
 }

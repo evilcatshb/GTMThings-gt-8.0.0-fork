@@ -1,13 +1,16 @@
 package com.hepdd.gtmthings.api.pattern;
 
-import com.gregtechceu.gtceu.api.machine.IMachineBlockEntity;
 import com.gregtechceu.gtceu.api.machine.MetaMachine;
-import com.gregtechceu.gtceu.api.machine.feature.multiblock.IMultiController;
-import com.gregtechceu.gtceu.api.pattern.BlockPattern;
-import com.gregtechceu.gtceu.api.pattern.MultiblockState;
-import com.gregtechceu.gtceu.api.pattern.TraceabilityPredicate;
-import com.gregtechceu.gtceu.api.pattern.predicates.SimplePredicate;
-import com.gregtechceu.gtceu.api.pattern.util.RelativeDirection;
+import com.gregtechceu.gtceu.api.machine.multiblock.MultiblockControllerMachine;
+import com.gregtechceu.gtceu.api.multiblock.MultiPredicate;
+import com.gregtechceu.gtceu.api.multiblock.OriginOffset;
+import com.gregtechceu.gtceu.api.multiblock.PredicateContext;
+import com.gregtechceu.gtceu.api.multiblock.pattern.BlockPattern;
+import com.gregtechceu.gtceu.api.multiblock.pattern.PatternSlice;
+import com.gregtechceu.gtceu.api.multiblock.pattern.PatternState;
+import com.gregtechceu.gtceu.api.multiblock.predicates.BasePredicate;
+import com.gregtechceu.gtceu.api.multiblock.util.BlockInfo;
+import com.gregtechceu.gtceu.api.multiblock.util.RelativeDirection;
 import com.gregtechceu.gtceu.common.block.CoilBlock;
 
 import net.minecraft.core.BlockPos;
@@ -36,198 +39,170 @@ import appeng.api.stacks.AEItemKey;
 import appeng.api.storage.MEStorage;
 import appeng.items.tools.powered.WirelessTerminalItem;
 import com.hepdd.gtmthings.common.item.AdvancedTerminalBehavior;
-import com.lowdragmc.lowdraglib.utils.BlockInfo;
 import com.mojang.datafixers.util.Pair;
 import it.unimi.dsi.fastutil.ints.IntObjectPair;
-import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import org.apache.commons.lang3.ArrayUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import oshi.util.tuples.Triplet;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.*;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 
-public class AdvancedBlockPattern extends BlockPattern {
+public class AdvancedBlockPattern {
 
     static Direction[] FACINGS = { Direction.SOUTH, Direction.NORTH, Direction.WEST, Direction.EAST, Direction.UP,
             Direction.DOWN };
     static Direction[] FACINGS_H = { Direction.SOUTH, Direction.NORTH, Direction.WEST, Direction.EAST };
 
-    public final int[][] aisleRepetitions;
-    public final RelativeDirection[] structureDir;
-    protected final TraceabilityPredicate[][][] blockMatches; // [z][y][x]
-    protected final int fingerLength; // z size
-    protected final int thumbLength; // y size
-    protected final int palmLength; // x size
-    protected final int[] centerOffset; // x, y, z, minZ, maxZ
+    private final BlockPattern blockPattern;
 
-    public AdvancedBlockPattern(TraceabilityPredicate[][][] predicatesIn, RelativeDirection[] structureDir, int[][] aisleRepetitions, int[] centerOffset) {
-        super(predicatesIn, structureDir, aisleRepetitions, centerOffset);
-        this.blockMatches = predicatesIn;
-        this.fingerLength = predicatesIn.length;
-        this.structureDir = structureDir;
-        this.aisleRepetitions = aisleRepetitions;
-
-        if (this.fingerLength > 0) {
-            this.thumbLength = predicatesIn[0].length;
-
-            if (this.thumbLength > 0) {
-                this.palmLength = predicatesIn[0][0].length;
-            } else {
-                this.palmLength = 0;
-            }
-        } else {
-            this.thumbLength = 0;
-            this.palmLength = 0;
-        }
-
-        this.centerOffset = centerOffset;
+    public AdvancedBlockPattern(BlockPattern blockPattern) {
+        this.blockPattern = blockPattern;
     }
 
     public static AdvancedBlockPattern getAdvancedBlockPattern(BlockPattern blockPattern) {
-        try {
-            Class<?> clazz = BlockPattern.class;
-            // blockMatches
-            Field blockMatchesField = clazz.getDeclaredField("blockMatches");
-            blockMatchesField.setAccessible(true);
-            TraceabilityPredicate[][][] blockMatches = (TraceabilityPredicate[][][]) blockMatchesField.get(blockPattern);
-            // structureDir
-            Field structureDirField = clazz.getDeclaredField("structureDir");
-            structureDirField.setAccessible(true);
-            RelativeDirection[] structureDir = (RelativeDirection[]) structureDirField.get(blockPattern);
-            // aisleRepetitions
-            Field aisleRepetitionsField = clazz.getDeclaredField("aisleRepetitions");
-            aisleRepetitionsField.setAccessible(true);
-            int[][] aisleRepetitions = (int[][]) aisleRepetitionsField.get(blockPattern);
-            // centerOffset
-            Field centerOffsetField = clazz.getDeclaredField("centerOffset");
-            centerOffsetField.setAccessible(true);
-            int[] centerOffset = (int[]) centerOffsetField.get(blockPattern);
-
-            return new AdvancedBlockPattern(blockMatches, structureDir, aisleRepetitions, centerOffset);
-        } catch (Exception ignored) {}
-        return null;
+        return new AdvancedBlockPattern(blockPattern);
     }
 
-    public void autoBuild(Player player, MultiblockState worldState,
+    public void autoBuild(Player player, PatternState patternState,
                           AdvancedTerminalBehavior.AutoBuildSetting autoBuildSetting) {
         Level world = player.level();
-        int minZ = -centerOffset[4];
-        clearWorldState(worldState);
-        IMultiController controller = worldState.getController();
-        BlockPos centerPos = controller.self().getPos();
-        Direction facing = controller.self().getFrontFacing();
-        Direction upwardsFacing = controller.self().getUpwardsFacing();
-        boolean isFlipped = controller.self().isFlipped();
-        Object2IntOpenHashMap<SimplePredicate> cacheGlobal = worldState.getGlobalCount();
-        Object2IntOpenHashMap<SimplePredicate> cacheLayer = worldState.getLayerCount();
+        MultiblockControllerMachine controller = patternState.getController();
+        if (controller == null) return;
+
+        clearWorldState(patternState);
+        BlockPos centerPos = controller.getBlockPos();
+        Direction facing = controller.getFrontFacing();
+        Direction upwardsFacing = controller.getUpwardsFacing();
+        boolean isFlipped = controller.isFlipped();
+
+        PredicateContext context = patternState.getContext();
         Map<BlockPos, Object> blocks = new HashMap<>();
         Set<BlockPos> placeBlockPos = new HashSet<>();
         blocks.put(centerPos, controller);
 
-        int[] repeat = new int[this.fingerLength];
-        for (int h = 0; h < this.fingerLength; h++) {
-            var minH = aisleRepetitions[h][0];
-            var maxH = aisleRepetitions[h][1];
-            if (minH != maxH) {
-                repeat[h] = Math.max(minH, Math.min(maxH, autoBuildSetting.getRepeatCount()));
-            } else {
-                repeat[h] = minH;
-            }
-        }
+        PatternSlice[] slices = blockPattern.getSlices();
+        RelativeDirection[] directions = blockPattern.getDirections();
+        OriginOffset offset = blockPattern.getOffset();
 
-        for (int c = 0, z = minZ++, r; c < this.fingerLength; c++) {
-            for (r = 0; r < repeat[c]; r++) {
-                cacheLayer.clear();
-                for (int b = 0, y = -centerOffset[1]; b < this.thumbLength; b++, y++) {
-                    for (int a = 0, x = -centerOffset[0]; a < this.palmLength; a++, x++) {
-                        TraceabilityPredicate predicate = this.blockMatches[c][b][a];
-                        BlockPos pos = setActualRelativeOffset(x, y, z, facing, upwardsFacing, isFlipped)
-                                .offset(centerPos.getX(), centerPos.getY(), centerPos.getZ());
-                        updateWorldState(worldState, pos, predicate);
+        // Resolve the pattern's OWN slice/row/column axes into absolute world directions,
+        // exactly like BlockPattern.checkSlice() does. Most gtceu multiblocks are declared
+        // as MultiblockPatternBuilder.start(FRONT, UP, RIGHT) - NOT FRONT/UP/LEFT - so
+        // hardcoding UP/LEFT/FRONT here (as the previous version did) walks the column axis
+        // backwards relative to what checkPatternAt() validates, producing a mirrored/rotated
+        // build. That mirror shows up as a "90 degree rotation" in creative (raw block
+        // placement doesn't care), and in survival it causes most target cells to land on
+        // already-occupied terrain, so the "already filled" check below silently skips them -
+        // meaning nothing gets placed and nothing gets pulled from the player's inventory.
+        Direction absoluteSlice = directions[0].getRelativeFacing(facing, upwardsFacing, isFlipped);
+        Direction absoluteString = directions[1].getRelativeFacing(facing, upwardsFacing, isFlipped);
+        Direction absoluteChar = directions[2].getRelativeFacing(facing, upwardsFacing, isFlipped);
+
+        BlockPos.MutableBlockPos originStart = centerPos.mutable();
+        offset.apply(originStart, facing, upwardsFacing, isFlipped);
+        BlockPos originPos = originStart.immutable();
+
+        int sliceOffset = 0;
+        for (PatternSlice slice : slices) {
+            int repeats = slice.getActualRepeats();
+            if (repeats <= 0) repeats = slice.getMinRepeats() > 0 ? slice.getMinRepeats() : 1;
+
+            for (int r = 0; r < repeats; r++) {
+                context.clearLayerCounts();
+                char[][] pattern = slice.getPattern();
+                BlockPos.MutableBlockPos sliceStart = originPos.mutable().move(absoluteSlice, sliceOffset);
+                BlockPos.MutableBlockPos stringStart = sliceStart.mutable();
+                for (int y = 0; y < pattern.length; y++) {
+                    char[] row = pattern[y];
+                    BlockPos.MutableBlockPos charCursor = stringStart.mutable();
+                    for (int x = 0; x < row.length; x++) {
+                        char c = row[x];
+                        BlockPos pos = charCursor.immutable();
+                        charCursor.move(absoluteChar);
+
+                        MultiPredicate multiPredicate = blockPattern.getPredicates().get(c);
+                        if (multiPredicate == null) continue;
+
+                        updateWorldState(patternState, pos, multiPredicate);
+
                         ItemStack coilItemStack = null;
                         if (!world.isEmptyBlock(pos)) {
                             if (world.getBlockState(pos).getBlock() instanceof CoilBlock coilBlock && autoBuildSetting.isReplaceCoilMode()) {
                                 coilItemStack = coilBlock.asItem().getDefaultInstance();
                             } else {
                                 blocks.put(pos, world.getBlockState(pos));
-                                for (SimplePredicate limit : predicate.limited) {
-                                    limit.testLimited(worldState);
-                                }
                                 continue;
                             }
-
                         }
+
+                        // Get all base predicates from this multi predicate
+                        List<BasePredicate> allPredicates = getAllPredicates(multiPredicate);
 
                         boolean find = false;
                         BlockInfo[] infos = new BlockInfo[0];
-                        for (SimplePredicate limit : predicate.limited) {
-                            if (limit.minLayerCount > 0 && autoBuildSetting.isPlaceHatch(limit.candidates.get())) {
-                                int curr = cacheLayer.getInt(limit);
-                                if (curr < limit.minLayerCount &&
-                                        (limit.maxLayerCount == -1 || curr < limit.maxLayerCount)) {
-                                    cacheLayer.addTo(limit, 1);
+
+                        // First try limited predicates (with min count requirements)
+                        for (BasePredicate limit : allPredicates) {
+                            if (limit.getMinSliceCount() > 0 && autoBuildSetting.isPlaceHatch(limit.getCandidates().toArray(new BlockInfo[0]))) {
+                                int curr = context.getSliceCount(limit);
+                                if (curr < limit.getMinSliceCount() &&
+                                        (limit.getMaxSliceCount() == -1 || curr < limit.getMaxSliceCount())) {
+                                    context.incrementSliceCount(limit);
                                 } else {
                                     continue;
                                 }
                             } else {
                                 continue;
                             }
-                            infos = limit.candidates == null ? null : limit.candidates.get();
+                            infos = limit.getCandidates().toArray(new BlockInfo[0]);
                             find = true;
                             break;
                         }
+
                         if (!find) {
-                            for (SimplePredicate limit : predicate.limited) {
-                                if (limit.minCount > 0 && autoBuildSetting.isPlaceHatch(limit.candidates.get())) {
-                                    int curr = cacheGlobal.getInt(limit);
-                                    if (curr < limit.minCount && (limit.maxCount == -1 || curr < limit.maxCount)) {
-                                        cacheGlobal.addTo(limit, 1);
+                            for (BasePredicate limit : allPredicates) {
+                                if (limit.getMinCount() > 0 && autoBuildSetting.isPlaceHatch(limit.getCandidates().toArray(new BlockInfo[0]))) {
+                                    int curr = context.getGlobalCount(limit);
+                                    if (curr < limit.getMinCount() && (limit.getMaxCount() == -1 || curr < limit.getMaxCount())) {
+                                        context.incrementGlobalCount(limit);
                                     } else {
                                         continue;
                                     }
                                 } else {
                                     continue;
                                 }
-                                infos = limit.candidates == null ? null : limit.candidates.get();
+                                infos = limit.getCandidates().toArray(new BlockInfo[0]);
                                 find = true;
                                 break;
                             }
                         }
-                        if (!find) { // no limited
-                            for (SimplePredicate limit : predicate.limited) {
-                                if (!autoBuildSetting.isPlaceHatch(limit.candidates.get())) {
+
+                        if (!find) {
+                            // No limited predicates matched, try all
+                            for (BasePredicate limit : allPredicates) {
+                                if (!autoBuildSetting.isPlaceHatch(limit.getCandidates().toArray(new BlockInfo[0]))) {
                                     continue;
                                 }
-                                if (limit.maxLayerCount != -1 &&
-                                        cacheLayer.getOrDefault(limit, Integer.MAX_VALUE) == limit.maxLayerCount) {
+                                if (limit.getMaxSliceCount() != -1 &&
+                                        context.getSliceCount(limit) >= limit.getMaxSliceCount()) {
                                     continue;
                                 }
-                                if (limit.maxCount != -1 &&
-                                        cacheGlobal.getOrDefault(limit, Integer.MAX_VALUE) == limit.maxCount) {
+                                if (limit.getMaxCount() != -1 &&
+                                        context.getGlobalCount(limit) >= limit.getMaxCount()) {
                                     continue;
                                 }
-                                cacheLayer.addTo(limit, 1);
-                                cacheGlobal.addTo(limit, 1);
-                                infos = ArrayUtils.addAll(infos,
-                                        limit.candidates == null ? null : limit.candidates.get());
-                            }
-                            for (SimplePredicate common : predicate.common) {
-                                if (common.candidates != null && predicate.common.size() > 1 && !autoBuildSetting.isPlaceHatch(common.candidates.get())) {
-                                    continue;
-                                }
-                                infos = ArrayUtils.addAll(infos,
-                                        common.candidates == null ? null : common.candidates.get());
+                                context.incrementSliceCount(limit);
+                                context.incrementGlobalCount(limit);
+                                infos = ArrayUtils.addAll(infos, limit.getCandidates().toArray(new BlockInfo[0]));
                             }
                         }
 
                         List<ItemStack> candidates = autoBuildSetting.apply(infos);
 
-                        if (autoBuildSetting.isReplaceCoilMode() && coilItemStack != null && ItemStack.isSameItem(candidates.get(0), coilItemStack)) continue;
+                        if (autoBuildSetting.isReplaceCoilMode() && coilItemStack != null && !candidates.isEmpty() && ItemStack.isSameItem(candidates.get(0), coilItemStack))
+                            continue;
 
                         // check inventory
                         Triplet<ItemStack, IItemHandler, Integer> result = foundItem(player, candidates, autoBuildSetting.getIsUseAE());
@@ -256,29 +231,30 @@ public class AdvancedBlockPattern extends BlockPattern {
                         }
 
                         BlockItem itemBlock = (BlockItem) found.getItem();
-                        BlockPlaceContext context = new BlockPlaceContext(world, player, InteractionHand.MAIN_HAND,
+                        BlockPlaceContext contextPlace = new BlockPlaceContext(world, player, InteractionHand.MAIN_HAND,
                                 found, BlockHitResult.miss(player.getEyePosition(0), Direction.UP, pos));
-                        InteractionResult interactionResult = itemBlock.place(context);
+                        InteractionResult interactionResult = itemBlock.place(contextPlace);
                         if (interactionResult != InteractionResult.FAIL) {
                             placeBlockPos.add(pos);
                             if (handler != null) {
                                 handler.extractItem(foundSlot, 1, false);
                             }
                         }
-                        if (world.getBlockEntity(pos) instanceof IMachineBlockEntity machineBlockEntity) {
-                            blocks.put(pos, machineBlockEntity.getMetaMachine());
+                        if (world.getBlockEntity(pos) instanceof MetaMachine machine) {
+                            blocks.put(pos, machine);
                         } else {
                             blocks.put(pos, world.getBlockState(pos));
                         }
-
                     }
+                    stringStart.move(absoluteString);
                 }
-                z++;
+                sliceOffset++;
             }
         }
-        Direction frontFacing = controller.self().getFrontFacing();
+
+        Direction frontFacing = controller.getFrontFacing();
         blocks.forEach((pos, block) -> { // adjust facing
-            if (!(block instanceof IMultiController)) {
+            if (!(block instanceof MultiblockControllerMachine)) {
                 if (block instanceof BlockState && placeBlockPos.contains(pos)) {
                     resetFacing(pos, (BlockState) block, frontFacing, (p, f) -> {
                         Object object = blocks.get(p.relative(f));
@@ -296,6 +272,14 @@ public class AdvancedBlockPattern extends BlockPattern {
                 }
             }
         });
+    }
+
+    private List<BasePredicate> getAllPredicates(MultiPredicate multiPredicate) {
+        List<BasePredicate> result = new ArrayList<>(multiPredicate.predicates());
+        for (MultiPredicate child : multiPredicate.children()) {
+            result.addAll(getAllPredicates(child));
+        }
+        return result;
     }
 
     private Triplet<ItemStack, IItemHandler, Integer> foundItem(Player player, List<ItemStack> candidates, int isUseAE) {
@@ -343,106 +327,14 @@ public class AdvancedBlockPattern extends BlockPattern {
         return new Pair<>(handler, foundSlot);
     }
 
-    private void clearWorldState(MultiblockState worldState) {
-        try {
-            Class<?> clazz = Class.forName("com.gregtechceu.gtceu.api.pattern.MultiblockState");
-            // Object obj = clazz.newInstance();
-            Method method = clazz.getDeclaredMethod("clean");
-            method.setAccessible(true);
-            method.invoke(worldState);
-        } catch (Exception ignored) {}
+    private void clearWorldState(PatternState patternState) {
+        patternState.getContext().reset();
     }
 
-    private void updateWorldState(MultiblockState worldState, BlockPos posIn, TraceabilityPredicate predicate) {
-        try {
-            Class<?> clazz = Class.forName("com.gregtechceu.gtceu.api.pattern.MultiblockState");
-            Method method = clazz.getDeclaredMethod("update", BlockPos.class, TraceabilityPredicate.class);
-            method.setAccessible(true);
-            method.invoke(worldState, posIn, predicate);
-        } catch (Exception ignored) {}
-    }
-
-    private BlockPos setActualRelativeOffset(int x, int y, int z, Direction facing, Direction upwardsFacing,
-                                             boolean isFlipped) {
-        int[] c0 = new int[] { x, y, z }, c1 = new int[3];
-        if (facing == Direction.UP || facing == Direction.DOWN) {
-            Direction of = facing == Direction.DOWN ? upwardsFacing : upwardsFacing.getOpposite();
-            for (int i = 0; i < 3; i++) {
-                switch (structureDir[i].getActualDirection(of)) {
-                    case UP -> c1[1] = c0[i];
-                    case DOWN -> c1[1] = -c0[i];
-                    case WEST -> c1[0] = -c0[i];
-                    case EAST -> c1[0] = c0[i];
-                    case NORTH -> c1[2] = -c0[i];
-                    case SOUTH -> c1[2] = c0[i];
-                }
-            }
-            int xOffset = upwardsFacing.getStepX();
-            int zOffset = upwardsFacing.getStepZ();
-            int tmp;
-            if (xOffset == 0) {
-                tmp = c1[2];
-                c1[2] = zOffset > 0 ? c1[1] : -c1[1];
-                c1[1] = zOffset > 0 ? -tmp : tmp;
-            } else {
-                tmp = c1[0];
-                c1[0] = xOffset > 0 ? c1[1] : -c1[1];
-                c1[1] = xOffset > 0 ? -tmp : tmp;
-            }
-            if (isFlipped) {
-                if (upwardsFacing == Direction.NORTH || upwardsFacing == Direction.SOUTH) {
-                    c1[0] = -c1[0]; // flip X-axis
-                } else {
-                    c1[2] = -c1[2]; // flip Z-axis
-                }
-            }
-        } else {
-            for (int i = 0; i < 3; i++) {
-                switch (structureDir[i].getActualDirection(facing)) {
-                    case UP -> c1[1] = c0[i];
-                    case DOWN -> c1[1] = -c0[i];
-                    case WEST -> c1[0] = -c0[i];
-                    case EAST -> c1[0] = c0[i];
-                    case NORTH -> c1[2] = -c0[i];
-                    case SOUTH -> c1[2] = c0[i];
-                }
-            }
-            if (upwardsFacing == Direction.WEST || upwardsFacing == Direction.EAST) {
-                int xOffset = upwardsFacing == Direction.EAST ? facing.getClockWise().getStepX() :
-                        facing.getClockWise().getOpposite().getStepX();
-                int zOffset = upwardsFacing == Direction.EAST ? facing.getClockWise().getStepZ() :
-                        facing.getClockWise().getOpposite().getStepZ();
-                int tmp;
-                if (xOffset == 0) {
-                    tmp = c1[2];
-                    c1[2] = zOffset > 0 ? -c1[1] : c1[1];
-                    c1[1] = zOffset > 0 ? tmp : -tmp;
-                } else {
-                    tmp = c1[0];
-                    c1[0] = xOffset > 0 ? -c1[1] : c1[1];
-                    c1[1] = xOffset > 0 ? tmp : -tmp;
-                }
-            } else if (upwardsFacing == Direction.SOUTH) {
-                c1[1] = -c1[1];
-                if (facing.getStepX() == 0) {
-                    c1[0] = -c1[0];
-                } else {
-                    c1[2] = -c1[2];
-                }
-            }
-            if (isFlipped) {
-                if (upwardsFacing == Direction.NORTH || upwardsFacing == Direction.SOUTH) {
-                    if (facing == Direction.NORTH || facing == Direction.SOUTH) {
-                        c1[0] = -c1[0]; // flip X-axis
-                    } else {
-                        c1[2] = -c1[2]; // flip Z-axis
-                    }
-                } else {
-                    c1[1] = -c1[1]; // flip Y-axis
-                }
-            }
-        }
-        return new BlockPos(c1[0], c1[1], c1[2]);
+    private void updateWorldState(PatternState patternState, BlockPos posIn, MultiPredicate predicate) {
+        // Update context for position tracking
+        PredicateContext context = patternState.getContext();
+        context.updatePos(posIn);
     }
 
     @Nullable

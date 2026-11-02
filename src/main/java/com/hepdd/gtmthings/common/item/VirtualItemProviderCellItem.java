@@ -52,7 +52,7 @@ public final class VirtualItemProviderCellItem extends CreativeCellItem {
         public void setStack(int slot, @Nullable GenericStack stack) {
             if (stack == null) {
                 super.setStack(slot, null);
-            } else if (stack.what() instanceof AEItemKey itemKey && itemKey.getItem() == CustomItems.VIRTUAL_ITEM_PROVIDER.asItem() && itemKey.hasTag()) {
+            } else if (stack.what() instanceof AEItemKey itemKey && itemKey.getItem() == CustomItems.VIRTUAL_ITEM_PROVIDER.get() && itemKey.hasTag()) {
                 boolean typesOnly = this.mode == Mode.CONFIG_TYPES;
                 itemKey.getTag().putBoolean("marked", true);
                 if (typesOnly && stack.amount() != 0L) {

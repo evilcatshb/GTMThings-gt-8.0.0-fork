@@ -15,8 +15,6 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
-import static com.lowdragmc.lowdraglib.side.item.forge.ItemTransferHelperImpl.insertToEmpty;
-
 public class UnlimitItemTransferHelper {
 
     public static void exportToTarget(IItemHandler source, int maxAmount, Predicate<ItemStack> predicate, Level level, BlockPos pos, @Nullable Direction direction) {
@@ -77,6 +75,16 @@ public class UnlimitItemTransferHelper {
             stack = handler.insertItem(slot, stack, simulate);
             if (stack.isEmpty()) {
                 return ItemStack.EMPTY;
+            }
+        }
+        return stack;
+    }
+
+    public static ItemStack insertToEmpty(IItemHandler handler, ItemStack stack, boolean simulate) {
+        for (int i = 0; i < handler.getSlots(); i++) {
+            if (handler.getStackInSlot(i).isEmpty()) {
+                stack = handler.insertItem(i, stack, simulate);
+                if (stack.isEmpty()) return ItemStack.EMPTY;
             }
         }
         return stack;

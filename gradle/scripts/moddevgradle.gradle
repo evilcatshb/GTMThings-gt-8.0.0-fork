@@ -1,8 +1,3 @@
-mixin {
-//    add sourceSets.main, "${mod_id}.refmap.json"
-//    config "${mod_id}.mixins.json"
-}
-
 legacyForge {
     version = "${minecraft_version}-${forge_version}"
 
@@ -14,25 +9,25 @@ legacyForge {
     runs {
         client {
             client()
+            sourceSet = sourceSets.main
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
-//            programArguments.addAll('--width', '3200')
-//            programArguments.addAll('--height', '1800')
         }
 
         server {
             server()
+            sourceSet = sourceSets.main
             programArgument '--nogui'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
         data {
             data()
-            ideName = "Data"
-            gameDirectory.set(file('run/data'))
+            sourceSet = sourceSets.main
             programArguments.addAll('--mod', project.mod_id)
             programArguments.addAll('--all')
             programArguments.addAll('--output', file('src/generated/resources/').getAbsolutePath())
             programArguments.addAll('--existing', file('src/main/resources/').getAbsolutePath())
+            programArguments.addAll('--existing-mod', 'gtceu')
         }
 
         configureEach {

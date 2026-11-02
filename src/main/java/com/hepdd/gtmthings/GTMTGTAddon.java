@@ -29,6 +29,17 @@ public class GTMTGTAddon implements IGTAddon {
 
     @Override
     public void addRecipes(Consumer<FinishedRecipe> provider) {
+        System.out.println("[GTMThings ADDON] ======================================");
+        System.out.println("[GTMThings ADDON] addRecipes() CALLED");
+        System.out.println("[GTMThings ADDON] Addon MOD_ID: " + addonModId());
+        System.out.println("[GTMThings ADDON] Provider class: " + provider.getClass().getName());
+        System.out.println("[GTMThings ADDON] Starting GTMTRecipe.init()...");
+        System.out.println("[GTMThings ADDON] ======================================");
+
         GTMTRecipe.init(provider);
+
+        System.out.println("[GTMThings ADDON] ======================================");
+        System.out.println("[GTMThings ADDON] GTMTRecipe.init() COMPLETED");
+        System.out.println("[GTMThings ADDON] ======================================");
     }
 }

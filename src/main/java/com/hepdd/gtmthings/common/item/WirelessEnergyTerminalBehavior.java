@@ -1,100 +1,108 @@
 package com.hepdd.gtmthings.common.item;
 
-import com.gregtechceu.gtceu.GTCEu;
-import com.gregtechceu.gtceu.api.gui.GuiTextures;
-import com.gregtechceu.gtceu.api.item.component.IItemUIFactory;
+import com.gregtechceu.gtceu.api.mui.IItemUIHolder;
 
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 
-import com.hepdd.gtmthings.api.gui.widget.AlignComponentPanelWidget;
-import com.hepdd.gtmthings.api.gui.widget.AlignLabelWidget;
+import brachy.modularui.api.drawable.Text;
+import brachy.modularui.factory.PlayerInventoryGuiData;
+import brachy.modularui.screen.ModularPanel;
+import brachy.modularui.screen.UISettings;
+import brachy.modularui.value.sync.PanelSyncManager;
+import brachy.modularui.value.sync.StringSyncValue;
+import brachy.modularui.widgets.layout.Flow;
 import com.hepdd.gtmthings.api.misc.WirelessEnergyContainer;
-import com.lowdragmc.lowdraglib.gui.editor.ColorPattern;
-import com.lowdragmc.lowdraglib.gui.factory.HeldItemUIFactory;
-import com.lowdragmc.lowdraglib.gui.modular.ModularUI;
-import com.lowdragmc.lowdraglib.gui.widget.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.*;
+import java.util.List;
+import java.util.UUID;
 
-import static com.hepdd.gtmthings.api.gui.widget.AlignLabelWidget.ALIGN_CENTER;
+import static com.hepdd.gtmthings.common.block.machine.electric.WirelessEnergyMonitor.CONTENT_HEIGHT;
+import static com.hepdd.gtmthings.common.block.machine.electric.WirelessEnergyMonitor.CONTENT_WIDTH;
 import static com.hepdd.gtmthings.common.block.machine.electric.WirelessEnergyMonitor.DISPLAY_TEXT_WIDTH;
 
-public class WirelessEnergyTerminalBehavior implements IItemUIFactory {
+public class WirelessEnergyTerminalBehavior implements IItemUIHolder {
 
     @Override
-    public ModularUI createUI(HeldItemUIFactory.HeldItemHolder holder, Player entityPlayer) {
-        return new ModularUI(DISPLAY_TEXT_WIDTH + 8 + 8, 117 + 8 + 8 + 8 + 17, holder, entityPlayer).widget(createWidget(holder.getHeld().getDescriptionId(), new WirelessMonitor(entityPlayer.getUUID(), entityPlayer.level())));
-    }
+    public ModularPanel<?> buildUI(PlayerInventoryGuiData<?> data, PanelSyncManager syncManager,
+                                   UISettings settings) {
+        var player = data.getPlayer();
+        String descId = data.getUsedItemStack().getDescriptionId();
 
-    private static Widget createWidget(String descriptionId, WirelessMonitor monitor) {
-        var group = new WidgetGroup(0, 0, DISPLAY_TEXT_WIDTH + 8 + 8, 117 + 8 + 8 + 8 + 17);
-        Widget label = new AlignLabelWidget(DISPLAY_TEXT_WIDTH / 2 + 4, 5, descriptionId).setTextAlign(ALIGN_CENTER);
-        group.addWidget(
-                new DraggableScrollableWidgetGroup(4, 4, DISPLAY_TEXT_WIDTH + 8, 117 + 8 + 8 + 17)
-                        .setBackground(GuiTextures.DISPLAY)
-                        .setYScrollBarWidth(2)
-                        .setYBarStyle(null, ColorPattern.T_WHITE.rectTexture().setRadius(1))
-                        .addWidget(label)
-                        .addWidget(new AlignComponentPanelWidget(4, 17, text -> addDisplayText(text, monitor))
-                                .setMaxWidthLimit(DISPLAY_TEXT_WIDTH)
-                                .setSplitChar(".")));
+        WirelessMonitor monitor = new WirelessMonitor(player.getUUID(), player.level());
 
-        group.setBackground(GuiTextures.BACKGROUND_INVERSE);
-        return group;
-    }
+        String[] cachedJson = { "" };
 
-    private static void addDisplayText(List<Component> textList, WirelessMonitor monitor) {
-        if (monitor.isRemote()) return;
-        if (monitor.displayTextCache == null || monitor.level.getServer().getTickCount() % 10 == 0) {
-            monitor.displayTextCache = monitor.getDisplayText(false, DISPLAY_TEXT_WIDTH);
-        }
-        textList.addAll(monitor.displayTextCache);
+        StringSyncValue textSync = new StringSyncValue(
+                () -> {
+                    // The UI builder/sync supplier may run on the client. The wireless
+                    // container and SavedData are server-only, so the client must wait
+                    // for the synchronized server display payload instead of calling
+                    // getDisplayText() locally.
+                    if (monitor.getLevel().isClientSide()) return "";
+                    return monitor.buildDisplayJson(DISPLAY_TEXT_WIDTH);
+                },
+                json -> cachedJson[0] = json);
+        syncManager.syncValue("wem_display_text", textSync);
+
+        ModularPanel<?> panel = ModularPanel.defaultPanel("wireless_energy_terminal",
+                CONTENT_WIDTH + 20, CONTENT_HEIGHT + 40);
+
+        Flow column = Flow.col()
+                .coverChildren()
+                .margin(2)
+                .child(Text.dynamic(() -> Component.translatable(descId)).asWidget())
+                .child(Text.dynamic(() -> {
+                    if (cachedJson[0].isEmpty()) return Component.empty();
+                    try {
+                        Component c = Component.Serializer.fromJson(cachedJson[0]);
+                        return c != null ? c : Component.empty();
+                    } catch (Exception e) {
+                        return Component.empty();
+                    }
+                }).asWidget());
+
+        return panel.child(column);
     }
 
     private static class WirelessMonitor implements IWirelessMonitor {
 
-        private WirelessMonitor(UUID uuid, Level level) {
-            this.uuid = uuid;
-            this.level = level;
-        }
-
-        private boolean isRemote() {
-            return level == null ? GTCEu.isClientThread() : level.isClientSide;
-        }
-
         private final UUID uuid;
         private final Level level;
-
-        private List<Component> displayTextCache;
 
         @Getter
         @Setter
         private WirelessEnergyContainer WirelessEnergyContainerCache;
 
-        /**
-         * @return cached uuid of player/team
-         */
+        private WirelessMonitor(UUID teamUUID, Level level) {
+            this.uuid = com.hepdd.gtmthings.utils.TeamUtil.getWirelessNetworkUUID(teamUUID);
+            this.level = level;
+        }
+
+        String buildDisplayJson(int displayWidth) {
+            List<Component> lines = getDisplayText(false, displayWidth);
+            if (lines.isEmpty()) return Component.Serializer.toJson(Component.empty());
+
+            Component result = lines.get(0);
+            for (int i = 1; i < lines.size(); i++) {
+                result = result.copy().append(Component.literal("\n")).append(lines.get(i));
+            }
+            return Component.Serializer.toJson(result);
+        }
+
         @Override
         public @Nullable UUID getUUID() {
             return uuid;
         }
 
-        /**
-         * @return false
-         */
         @Override
         public boolean display() {
             return false;
         }
 
-        /**
-         * @return level
-         */
         @Override
         public Level getLevel() {
             return level;

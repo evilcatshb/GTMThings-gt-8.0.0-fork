@@ -1,20 +1,30 @@
 dependencies {
     compileOnly libs.jetbrains.annotations
 
-    modImplementation("com.gregtechceu.gtceu:gtceu-${project.minecraft_version}:${project.gtceu_version}")
-    modImplementation("com.lowdragmc.ldlib:ldlib-forge-$project.minecraft_version:$project.ldlib_version") { transitive = false }
-    modImplementation("com.tterrag.registrate:Registrate:$project.registrate_version")
-    modImplementation("dev.toma.configuration:configuration-forge-$project.minecraft_version:$project.configuration_version")
+    // GregTech: production fork build (SRG names) resolved from the flatDir repo pointing at libs/.
+    // modImplementation lets ModDevGradle remap the jar - and its jarjar'd contents - from SRG to
+    // Mojang names. flatDir has no POM metadata, so this is never transitive.
+    modImplementation("com.gregtechceu.gtceu:gtceu-${minecraft_version}:${gtceu_build_version}")
 
-    // JEI
-    modCompileOnly("mezz.jei:jei-$project.minecraft_version-forge-api:$project.jei_version") { transitive = false }
-    modCompileOnly("mezz.jei:jei-$project.minecraft_version-common-api:$project.jei_version") { transitive = false }
-    modRuntimeOnly("mezz.jei:jei-$project.minecraft_version-forge:$project.jei_version") { transitive = false }
+    // ModularUI, Registrate and Configuration are jarjar'd inside GTCEu (and get remapped along with
+    // it at runtime), but the compiler cannot see classes nested inside jars, so we declare them
+    // explicitly: ModularUI is compile-only (GTCEu always provides it at runtime), while Registrate
+    // and Configuration come from flatDir via modImplementation so they get SRG->Mojang remapped too.
+    compileOnly(fileTree(dir: 'libs', includes: ['modularui-*.jar']))
+    modImplementation("com.tterrag.registrate:Registrate:${registrate_version}")
+    modImplementation("dev.toma.configuration:configuration-${minecraft_version}:${configuration_version}")
 
-    // EMI
-    modImplementation("dev.emi:emi-forge:${emi_version}")
+    // Production jars resolved from Maven so MDG can remap them from SRG to Mojang names
+    modImplementation("appeng:appliedenergistics2-forge:15.4.10")
+    modImplementation("appeng:guideme:20.1.15")
+    modImplementation("dev.architectury:architectury-forge:9.2.14")
+    modImplementation("dev.ftb.mods:ftb-library-forge:2001.2.10")
+    modImplementation("dev.ftb.mods:ftb-teams-forge:2001.3.1")
+    modImplementation("dev.emi:emi-forge:1.1.24+1.20.1")
+    modImplementation("curse.maven:jade-324717:5390389")
+    modImplementation("mezz.jei:jei-1.20.1-forge:15.20.0.129")
 
-    // Mixin Extras
+    // Mixin Extras (provided at runtime by GTCEu's jarjar)
     compileOnly(annotationProcessor("com.github.bawnorton.mixinsquared:mixinsquared-common:0.3.2-beta.4"))
     implementation(jarJar("com.github.bawnorton.mixinsquared:mixinsquared-neoforge:0.3.2-beta.4"))
     api(annotationProcessor("io.github.llamalad7:mixinextras-common:$project.mixinextras_version"))
@@ -23,37 +33,4 @@ dependencies {
     // lombok
     compileOnly 'org.projectlombok:lombok:1.18.24'
     annotationProcessor 'org.projectlombok:lombok:1.18.24'
-
-    // JADE
-    modImplementation("curse.maven:jade-324717:6106101")
-
-    // AE2
-    modImplementation("appeng:appliedenergistics2-forge:${project.ae2_version}") { transitive = false }
-    modImplementation("org.appliedenergistics:guideme:20.1.7")
-
-    // FTB
-    modCompileOnly("dev.architectury:architectury-forge:${project.architectury_version}")
-    modCompileOnly("dev.ftb.mods:ftb-library-forge:${project.ftb_library_version}") { transitive = false }
-    modCompileOnly("dev.ftb.mods:ftb-teams-forge:${project.ftb_teams_version}") { transitive = false }
-
-//    // Jech
-//    modRuntimeOnly("dev:jecharacters:1.20.1-forge-4.5.11-dev-shadow")
-//
-//    // Embeddium
-//    modRuntimeOnly("curse.maven:embeddium-908741:5681725")
-//
-//    // Modern UI
-//    modRuntimeOnly("curse.maven:modern-ui-352491:5977000")
-//
-//    // Mouse Tweaks
-//    modRuntimeOnly("curse.maven:mouse-tweaks-60089:5338457")
-//
-//    // WorldEdit
-//    modRuntimeOnly("curse.maven:worldedit-225608:4586218")
-
-    // Sophisticated
-    modRuntimeOnly("curse.maven:sophisticated-core-618298:6596375")
-    modRuntimeOnly("curse.maven:sophisticated-storage-619320:6596948")
-    modRuntimeOnly("curse.maven:sophisticated-backpacks-422301:6587116")
-
 }

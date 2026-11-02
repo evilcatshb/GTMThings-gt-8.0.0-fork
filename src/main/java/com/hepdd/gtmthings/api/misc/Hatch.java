@@ -1,6 +1,5 @@
 package com.hepdd.gtmthings.api.misc;
 
-import com.gregtechceu.gtceu.api.machine.IMachineBlockEntity;
 import com.gregtechceu.gtceu.api.machine.multiblock.part.MultiblockPartMachine;
 import com.gregtechceu.gtceu.api.registry.GTRegistries;
 
@@ -17,7 +16,7 @@ public final class Hatch {
     static {
         GTRegistries.MACHINES.forEach(d -> {
             var block = d.getBlock();
-            if (d.createMetaMachine((IMachineBlockEntity) d.getBlockEntityType().create(BlockPos.ZERO, block.defaultBlockState())) instanceof MultiblockPartMachine) {
+            if (d.getBlockEntityType().create(BlockPos.ZERO, block.defaultBlockState()) instanceof MultiblockPartMachine) {
                 Set.add(block);
             }
         });

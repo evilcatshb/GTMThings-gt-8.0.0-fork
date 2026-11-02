@@ -1,7 +1,6 @@
 package com.hepdd.gtmthings.client;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.model.BakedModel;
@@ -13,19 +12,20 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 
 import com.hepdd.gtmthings.GTMThings;
 import com.hepdd.gtmthings.common.item.VirtualItemProviderBehavior;
-import com.lowdragmc.lowdraglib.client.model.ModelFactory;
-import com.lowdragmc.lowdraglib.client.renderer.IRenderer;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import org.joml.Matrix4f;
 
-public final class VirtualItemProviderRenderer implements IRenderer {
+/**
+ * Utility class for rendering virtual item provider items.
+ * In GTCEu 8.0.0, the LDLib IRenderer/ICustomRenderer system is removed.
+ * Item rendering is now handled through standard Minecraft model system.
+ * This class provides static rendering helpers that can be called from BakedModel or ItemDecorator.
+ */
+public final class VirtualItemProviderRenderer {
 
-    public static final VirtualItemProviderRenderer INSTANCE = new VirtualItemProviderRenderer();
-
-    @Override
     @OnlyIn(Dist.CLIENT)
-    public void renderItem(ItemStack stack, ItemDisplayContext transformType, boolean leftHand, PoseStack poseStack, MultiBufferSource buffer, int combinedLight, int combinedOverlay, BakedModel model) {
+    public static void renderItem(ItemStack stack, ItemDisplayContext transformType, boolean leftHand, PoseStack poseStack, MultiBufferSource buffer, int combinedLight, int combinedOverlay, BakedModel model) {
         ItemStack item = VirtualItemProviderBehavior.getVirtualItem(stack);
         poseStack.pushPose();
         if (!item.isEmpty()) {
@@ -38,8 +38,10 @@ public final class VirtualItemProviderRenderer implements IRenderer {
             Tesselator tess = Tesselator.getInstance();
             BufferBuilder builder = tess.getBuilder();
             builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-            RenderSystem.setShader(GameRenderer::getPositionTexShader);
-            TextureAtlasSprite sprite = ModelFactory.getBlockSprite(GTMThings.id("item/virtual_item_provider"));
+            RenderSystem.setShader(net.minecraft.client.renderer.GameRenderer::getPositionTexShader);
+            TextureAtlasSprite sprite = Minecraft.getInstance()
+                    .getModelManager().getAtlas(InventoryMenu.BLOCK_ATLAS)
+                    .getSprite(GTMThings.id("item/virtual_item_provider"));
             RenderSystem.setShaderTexture(0, InventoryMenu.BLOCK_ATLAS);
             float minU = sprite.getU0();
             float maxU = sprite.getU1();
