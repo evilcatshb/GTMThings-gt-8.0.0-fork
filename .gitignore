@@ -42,3 +42,7 @@ git_status.txt
 *.ps1
 /src/generated/resources/.cache/
 patch_ae2_refmap.java
+
+# Local planning notes (kept in the working directory, not source control)
+/CREATIVE_ENERGY_HATCH_GUI_8.0.0_IMPLEMENTATION_PLAN.md
+/gtmthings_8.0.0_update_todo.md
